@@ -62,10 +62,10 @@ def install(cfg_filename):
     #Setup openerp-server.conf file
     os.chdir(project_name)
     fos = open('openerp-server.conf', 'w')
-    fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = admin\n')
-    fos.write('db_host = False\nb_port = False\n')
+    fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
+    fos.write('db_host = localhost\ndb_port = 5432\n')
     fos.write('db_user = %s\n' % project_name)
-    fos.write('db_password = False\n')
+    fos.write('db_password = redhat19\n')
     fos.write('xmlrpc_port = %s\n' % project_port_no)
     fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
     fos.close()
