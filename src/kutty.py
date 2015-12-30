@@ -129,7 +129,7 @@ def upgradesrc (project_name, project_path):
     print 'Upgrading project source only'
     stop(project_name, project_path)
     os.chdir(project_path)
-    subprocess.call(['git', 'reset'])
+    subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
     os.system('%s -c openerp-server.conf & echo $! > .pid'%startup_file_location())
     print 'Project upgraded with source and started'
@@ -140,7 +140,7 @@ def upgrade(project_name, project_path):
     print 'Upgrading project ', project_name
     stop(project_name, project_path)
     os.chdir(project_path)
-    subprocess.call(['git', 'reset'])
+    subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
     os.system('%s -c openerp-server.conf --update=all & echo $! > .pid'%startup_file_location())
     print 'Project upgraded and started'
