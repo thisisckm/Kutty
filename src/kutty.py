@@ -14,6 +14,7 @@ import time
 __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
 __projects_home = None
+__server_list_file = 'servername.txt'
 __pid_file = '.pid'
 
 
@@ -50,15 +51,15 @@ def install(cfg_filename):
         print 'Project already exists'
         return
     #Download source code
-    os.mkdir(project_name)        
     subprocess.call(['git', 'clone', '-b', git_branch, git_url, project_name])
     
     #Setup db username
     cmd = ['sudo', 'su', '-', 'postgres', '-c', 'createuser -s --createdb %s' % project_name]
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE) 
     ps.communicate()
-    
+
     #Setup openerp-server.conf file
+    os.chdir(project_name)
     fos = open('openerp-server.conf', 'w')
     fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
     fos.write('db_host = localhost\ndb_port = 5432\n')
@@ -67,7 +68,10 @@ def install(cfg_filename):
     fos.write('xmlrpc_port = %s\n' % project_port_no)
     fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
     fos.close()
-    
+
+    with open(__server_list_file, mode='a') as server_list_file:
+        server_list_file.write('"%s" "%s"\n'%(project_name, project_name))
+
     print "Installation Done"
     return
 
@@ -173,6 +177,9 @@ def main():
     if not os.path.exists(__projects_home):
         os.mkdir(__projects_home)
     os.chdir(__projects_home)
+
+    if not os.path.exists(__server_list_file):
+        os.mknod(__server_list_file)
 
     parser = argparse.ArgumentParser(description='Kutty - from Axcensa')
     subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands', help='additional help')
