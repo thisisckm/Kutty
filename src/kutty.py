@@ -5,7 +5,7 @@ import os.path
 import shutil
 import signal
 import subprocess
-import sys
+import argparse
 import time
 # To change this license header, choose License Headers in Project Properties.
 # To change this template file, choose Tools | Templates
@@ -46,11 +46,10 @@ def install(cfg_filename):
     git_branch = cfg.get('git', 'branch')
     
     print "Installing project", project_name
-    os.chdir(__projects_home)
     if os.path.isdir(project_name):
         print 'Project already exists'
         return
-    #Download source code    
+    #Download source code
     os.mkdir(project_name)        
     subprocess.call(['git', 'clone', '-b', git_branch, git_url, project_name])
     
@@ -60,7 +59,6 @@ def install(cfg_filename):
     ps.communicate()
     
     #Setup openerp-server.conf file
-    os.chdir(project_name)
     fos = open('openerp-server.conf', 'w')
     fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
     fos.write('db_host = localhost\ndb_port = 5432\n')
@@ -73,9 +71,10 @@ def install(cfg_filename):
     print "Installation Done"
     return
 
-def remove(project_name, project_path):
-    stop(project_name, project_path)
-    shutil.rmtree(project_path)
+
+def remove(project_name):
+    stop(project_name)
+    shutil.rmtree(project_name)
     cmd = ['sudo', 'su', '-', 'postgres', '-c', 'dropuser %s' % project_name]
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
@@ -103,20 +102,22 @@ def get_pid(pid_file):
     return pid
 
 
-def stop(project_name, project_path):
+def stop(project_name):
     print 'Stopping project ', project_name
-    os.chdir(project_path)    
+    os.chdir(project_name)
     if not pid_exists(get_pid(__pid_file)):
         print 'Server not running'
+        os.chdir('..')
         return
     pid_kill(__pid_file)
     print 'Project stopped'
+    os.chdir('..')
     return
 
 
-def start(project_name, project_path):
+def start(project_name):
     print 'Starting project ', project_name
-    os.chdir(project_path)
+    os.chdir(project_name)
     if pid_exists(get_pid(__pid_file)):
         print 'Already server running'
         return
@@ -125,10 +126,10 @@ def start(project_name, project_path):
     return
 
 
-def upgradesrc (project_name, project_path):
+def upgradesrc (project_name):
     print 'Upgrading project source only'
-    stop(project_name, project_path)
-    os.chdir(project_path)
+    stop(project_name)
+    os.chdir(project_name)
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
     os.system('%s -c openerp-server.conf & echo $! > .pid'%startup_file_location())
@@ -136,10 +137,10 @@ def upgradesrc (project_name, project_path):
     return
 
 
-def upgrade(project_name, project_path):
+def upgrade(project_name):
     print 'Upgrading project ', project_name
-    stop(project_name, project_path)
-    os.chdir(project_path)
+    stop(project_name)
+    os.chdir(project_name)
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
     os.system('%s -c openerp-server.conf --update=all & echo $! > .pid'%startup_file_location())
@@ -147,89 +148,120 @@ def upgrade(project_name, project_path):
     return
 
 
-def updatedb(project_name, project_path):
+def updatedb(project_name):
     print 'Updating DB of ', project_name
-    stop(project_name, project_path)
-    os.chdir(project_path)    
+    stop(project_name)
+    os.chdir(project_name)
     os.system('%s -c openerp-server.conf --update=all & echo $! > .pid'%startup_file_location())
     print 'Project DB updated'
     return
+
+
+def extant_file(filepath):
+    """
+    'Type' for argparse - checks that file exists but does not open.
+    """
+    if not os.path.exists(filepath):
+        # Argparse uses the ArgumentTypeError to give a rejection message like:
+        # error: argument input: x does not exist
+        raise argparse.ArgumentTypeError("{0} does not exist".format(filepath))
+    return filepath
 
 
 def main():
     
     if not os.path.exists(__projects_home):
         os.mkdir(__projects_home)
-        
-    if len(sys.argv) == 2:
-        cmd = sys.argv[1]
-        if cmd == 'init':
-            init()
-    elif len(sys.argv) == 3:
-        cmd = sys.argv[1]
-        cfg_filename = sys.argv[2]
-        if cmd == 'install' and os.path.isfile(cfg_filename):
-            install(cfg_filename)
-        elif cmd == 'start':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                start(project_name, project_path)
-        elif cmd == 'stop':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                stop(project_name, project_path)
-        elif cmd == 'restart':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                stop(project_name, project_path)
-                time.sleep(5)
-                start(project_name, project_path)    
-        elif cmd == 'remove':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                remove(project_name, project_path)
-        elif cmd == 'upgrade':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                upgrade(project_name, project_path)
-        elif cmd == 'upgradesrc':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                upgradesrc(project_name, project_path)
-        elif cmd == 'updatedb':
-            project_name = sys.argv[2]
-            project_path = __projects_home + os.path.sep + project_name
-            if not os.path.isdir(project_path):
-                print "Project ", project_name, " not found!"
-            else:
-                updatedb(project_name, project_path)
-        elif cmd == 'log':
-            import tailer
-            project_name = sys.argv[2]
-            project_log_file = __projects_home + os.path.sep + project_name + os.path.sep + 'log' + os.path.sep + 'openerp-server.log'
-            print project_log_file
-            for line in tailer.follow(open(project_log_file)):
-                print line
+    os.chdir(__projects_home)
+
+    parser = argparse.ArgumentParser(description='Kutty - from Axcensa')
+    subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands', help='additional help')
+
+    parser_create = subparsers.add_parser('init')
+    parser_create.set_defaults(which='init')
+
+    parser_create = subparsers.add_parser('install')
+    parser_create.set_defaults(which='install')
+    parser_create.add_argument('config-file', help='Project configuration file', type=extant_file)
+
+    parser_create = subparsers.add_parser('upgrade')
+    parser_create.set_defaults(which='upgrade')
+    parser_create.add_argument('project', help='Project name to be upgraded')
+
+    parser_create = subparsers.add_parser('update')
+    parser_create.set_defaults(which='upgrade')
+    parser_create.add_argument('project', help='Project name to be update')
+
+    parser_create = subparsers.add_parser('upgradesrc')
+    parser_create.set_defaults(which='upgrade')
+    parser_create.add_argument('project', help='Project name to be upgraded only the source')
+
+    parser_create = subparsers.add_parser('stop')
+    parser_create.set_defaults(which='stop')
+    parser_create.add_argument('project', help='Project server to be Stopped', type=extant_file)
+
+    parser_create = subparsers.add_parser('start')
+    parser_create.set_defaults(which='start')
+    parser_create.add_argument('project', help='Project server to be Start', type=extant_file)
+
+    parser_create = subparsers.add_parser('restart')
+    parser_create.set_defaults(which='restart')
+    parser_create.add_argument('project', help='Project server to be restart', type=extant_file)
+
+    parser_create = subparsers.add_parser('log')
+    parser_create.set_defaults(which='log')
+    parser_create.add_argument('project', help='Project server to be restart', type=extant_file)
+
+    args = vars(parser.parse_args())
+
+    if args['which'] == 'init':
+        init()
+
+    elif args['which'] == 'install':
+        cfg_filename = args['config-file']
+        install(cfg_filename)
+
+    elif args['which'] == 'start':
+        project_name = args['project']
+        start(project_name)
+
+    elif args['which'] == 'stop':
+        project_name = args['project']
+        stop(project_name)
+
+    elif args['which'] == 'restart':
+        project_name = args['project']
+        stop(project_name)
+        time.sleep(5)
+        start(project_name)
+
+    elif args['which'] == 'remove':
+        project_name = args['project']
+        remove(project_name)
+
+    elif args['which'] == 'upgrade':
+        project_name = args['project']
+        upgrade(project_name)
+
+    elif args['which'] == 'upgradesrc':
+        project_name = args['project']
+        upgradesrc(project_name)
+
+    elif args['which'] == 'updatedb':
+        project_name = args['project']
+        updatedb(project_name)
+
+    elif args['which'] == 'log':
+        import tailer
+        project_name = args['project']
+        project_log_file = project_name + os.path.sep + 'log' + os.path.sep + 'openerp-server.log'
+        print project_log_file
+        for line in tailer.follow(open(project_log_file)):
+            print line
+
     else:
-        print 'argument is required'
+        print args['which']
+
     return
 
 if __name__ == "__main__":
