@@ -141,22 +141,22 @@ def upgradesrc (project_name):
     return
 
 
-def upgrade(project_name):
+def upgrade(project_name, module):
     print 'Upgrading project ', project_name
     stop(project_name)
     os.chdir(project_name)
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
-    os.system('%s -c openerp-server.conf --update=all & echo $! > .pid'%startup_file_location())
+    os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid'%(startup_file_location(), module))
     print 'Project upgraded and started'
     return
 
 
-def updatedb(project_name):
+def updatedb(project_name, module):
     print 'Updating DB of ', project_name
     stop(project_name)
     os.chdir(project_name)
-    os.system('%s -c openerp-server.conf --update=all & echo $! > .pid'%startup_file_location())
+    os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid'%(startup_file_location(), module))
     print 'Project DB updated'
     return
 
@@ -194,13 +194,15 @@ def main():
     parser_create = subparsers.add_parser('upgrade')
     parser_create.set_defaults(which='upgrade')
     parser_create.add_argument('project', help='Project name to be upgraded')
+    parser_create.add_argument('--update', default="all",help='Module to be updated')
 
-    parser_create = subparsers.add_parser('update')
-    parser_create.set_defaults(which='upgrade')
+    parser_create = subparsers.add_parser('updatedb')
+    parser_create.set_defaults(which='updatedb')
     parser_create.add_argument('project', help='Project name to be update')
+    parser_create.add_argument('--update', default="all",help='Module to be updated')
 
     parser_create = subparsers.add_parser('upgradesrc')
-    parser_create.set_defaults(which='upgrade')
+    parser_create.set_defaults(which='upgradesrc')
     parser_create.add_argument('project', help='Project name to be upgraded only the source')
 
     parser_create = subparsers.add_parser('stop')
@@ -248,7 +250,8 @@ def main():
 
     elif args['which'] == 'upgrade':
         project_name = args['project']
-        upgrade(project_name)
+        module = args['update']
+        upgrade(project_name, module)
 
     elif args['which'] == 'upgradesrc':
         project_name = args['project']
@@ -256,7 +259,8 @@ def main():
 
     elif args['which'] == 'updatedb':
         project_name = args['project']
-        updatedb(project_name)
+        module = args['update']
+        updatedb(project_name, module)
 
     elif args['which'] == 'log':
         import tailer
