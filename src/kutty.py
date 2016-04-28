@@ -162,14 +162,21 @@ def updatedb(project_name, module):
 
 
 def extant_file(filepath):
-    """
-    'Type' for argparse - checks that file exists but does not open.
-    """
     if not os.path.exists(filepath):
-        # Argparse uses the ArgumentTypeError to give a rejection message like:
-        # error: argument input: x does not exist
         raise argparse.ArgumentTypeError("{0} does not exist".format(filepath))
     return filepath
+
+
+def switch(project_name, branch, module):
+    print 'Switching into branch %s for project %s'%(branch, project_name)
+    stop(project_name)
+    os.chdir(project_name)
+    subprocess.call(['git', 'reset', '--hard'])
+    subprocess.call(['git', 'fetch'])
+    subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
+    os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid'%(startup_file_location(), module))
+    print 'Branch swithced and started'
+    return
 
 
 def main():
@@ -204,6 +211,12 @@ def main():
     parser_create = subparsers.add_parser('upgradesrc')
     parser_create.set_defaults(which='upgradesrc')
     parser_create.add_argument('project', help='Project name to be upgraded only the source')
+
+    parser_create = subparsers.add_parser('switch')
+    parser_create.set_defaults(which='switch')
+    parser_create.add_argument('project', help='Project name to be where switch of branch')
+    parser_create.add_argument('branch', help='Branch to be switched')
+    parser_create.add_argument('--update', default="all",help='Module to be updated')
 
     parser_create = subparsers.add_parser('stop')
     parser_create.set_defaults(which='stop')
@@ -261,6 +274,12 @@ def main():
         project_name = args['project']
         module = args['update']
         updatedb(project_name, module)
+
+    elif args['which'] == 'switch':
+        project_name = args['project']
+        module = args['update']
+        branch = args['branch']
+        switch(project_name, branch, module)
 
     elif args['which'] == 'log':
         import tailer
