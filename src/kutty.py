@@ -23,6 +23,8 @@ if __projects_home is None:
 
 
 def startup_file_location():
+    if os.path.isdir('odoo'):
+        return 'odoo/openerp-server'
     if os.path.isfile('openerp-server'):
         return './openerp-server'
     return 'openerp7/openerp-server'
@@ -45,23 +47,43 @@ def install(cfg_filename):
     project_port_no = cfg.get('project', 'port_no')
     git_url = cfg.get('git', 'url')
     git_branch = cfg.get('git', 'branch')
-    
+    is_addons_deploy = False
+    addons_git_url = None
+    addons_git_branch = None
+    if cfg.has_section('addons'):
+        is_addons_deploy = True
+        addons_git_url = cfg.get('addons', 'url')
+        addons_git_branch = cfg.get('addons', 'branch')
+
     print "Installing project", project_name
     if os.path.isdir(project_name):
         print 'Project already exists'
         return
     #Download source code
-    subprocess.call(['git', 'clone', '-b', git_branch, git_url, project_name])
-    
+    checkout_path = project_name
+    addons_checkout_path = None
+    if is_addons_deploy:
+        checkout_path = checkout_path + '/odoo'
+        addons_checkout_path = project_name + '/addons'
+    os.makedirs(checkout_path)
+
+    subprocess.call(['git', 'clone', '-b', git_branch, git_url, checkout_path])
+    if addons_checkout_path:
+        subprocess.call(['git', 'clone', '-b', addons_git_branch, addons_git_url, addons_checkout_path])
+
     #Setup db username
     cmd = ['sudo', 'su', '-', 'postgres', '-c', 'createuser -s --createdb %s' % project_name]
-    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE) 
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     ps.communicate()
 
     #Setup openerp-server.conf file
-    os.chdir(project_name)
+    os.chdir(checkout_path)
     fos = open('openerp-server.conf', 'w')
     fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
+    if is_addons_deploy:
+        addons_path = __projects_home + '/' + project_name + '/odoo/addons'
+        addons_path = addons_path + ',' + __projects_home + '/' + project_name + '/addons'
+        fos.write('addons_path = %s\n' % (addons_path))
     fos.write('db_host = localhost\ndb_port = 5432\n')
     fos.write('db_user = %s\n' % project_name)
     fos.write('db_password = redhat19\n')
@@ -69,6 +91,7 @@ def install(cfg_filename):
     fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
     fos.close()
 
+    os.chdir(__projects_home)
     with open(__server_list_file, mode='a') as server_list_file:
         server_list_file.write('"%s" "%s"\n'%(project_name, project_name))
 
@@ -234,6 +257,11 @@ def main():
     parser_create.set_defaults(which='log')
     parser_create.add_argument('project', help='Project server to be restart', type=extant_file)
 
+    parser_create = subparsers.add_parser('remove')
+    parser_create.set_defaults(which='remove')
+    parser_create.add_argument('project', help='Project server to be removed', type=extant_file)
+
+
     args = vars(parser.parse_args())
 
     if args['which'] == 'init':
@@ -288,6 +316,11 @@ def main():
         print project_log_file
         for line in tailer.follow(open(project_log_file)):
             print line
+
+    elif args['which'] == 'remove':
+        project_name = args['project']
+        remove(project_name)
+
 
     else:
         print args['which']
