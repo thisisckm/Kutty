@@ -156,11 +156,13 @@ def start(project_name):
 def upgradesrc (project_name):
     print 'Upgrading project source only'
     stop(project_name)
-    os.chdir(project_name)
+    project_path = __projects_home + '/' + project_name
+    os.chdir(project_path)
     os.path.isdir('addons')
     os.chdir('addons')
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
+    os.chdir(project_path)
     os.system('%s -c openerp-server.conf & echo $! > .pid'%startup_file_location())
     print 'Project upgraded with source and started'
     return
@@ -169,11 +171,13 @@ def upgradesrc (project_name):
 def upgrade(project_name, module):
     print 'Upgrading project ', project_name
     stop(project_name)
-    os.chdir(project_name)
+    project_path = __projects_home + '/' + project_name
+    os.chdir(project_path)
     os.path.isdir('addons')
     os.chdir('addons')
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'pull'])
+    os.chdir(project_path)
     os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid'%(startup_file_location(), module))
     print 'Project upgraded and started'
     return
@@ -197,12 +201,14 @@ def extant_file(filepath):
 def switch(project_name, branch, module):
     print 'Switching into branch %s for project %s'%(branch, project_name)
     stop(project_name)
-    os.chdir(project_name)
+    project_path = __projects_home + '/' + project_name
+    os.chdir(project_path)
     os.path.isdir('addons')
     os.chdir('addons')
     subprocess.call(['git', 'reset', '--hard'])
     subprocess.call(['git', 'fetch'])
     subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
+    os.chdir(project_path)
     os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid'%(startup_file_location(), module))
     print 'Branch swithced and started'
     return
