@@ -77,7 +77,7 @@ def install(cfg_filename):
     ps.communicate()
 
     #Setup openerp-server.conf file
-    os.chdir(checkout_path)
+    os.chdir(project_name)
     fos = open('openerp-server.conf', 'w')
     fos.write('[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
     if is_addons_deploy:
