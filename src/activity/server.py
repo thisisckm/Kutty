@@ -3,15 +3,32 @@ import os.path
 import shutil
 import signal
 import subprocess
+import psycopg2
+import sys
 
 
 class ServerActivity:
-    def __init__(self, projects_home, server_list_file):
-        self.projects_home = projects_home
-        self.server_list_file = server_list_file
+    def __init__(self, kutty_config):
+        self.kutty_config = kutty_config
+        self.projects_home = kutty_config['default']['project_home']
         self.pid_file = '.pid'
 
-    def startup_file_location(self):
+        try:
+            host = kutty_config['odoo_db']['host']
+            port = kutty_config['odoo_db']['port']
+            user = kutty_config['odoo_db']['username']
+            password = kutty_config['odoo_db']['password']
+            conn = psycopg2.connect("dbname='template1' host='%s' port='%s' user='%s' password='%s'" % (host,port,user,password))
+            conn.close()
+        except:
+            print "Can't able to connect to the database"
+            sys.exit(1)
+
+        if not os.path.exists(self.projects_home):
+            os.mkdir(self.projects_home)
+
+
+    def _startup_file_location(self):
         if os.path.isdir('odoo'):
             return 'odoo/openerp-server'
         if os.path.isfile('openerp-server'):
@@ -48,7 +65,7 @@ class ServerActivity:
             addons_path = self.projects_home + '/' + project_name + '/odoo/addons'
             addons_path = addons_path + ',' + self.projects_home + '/' + project_name + '/addons'
             fos.write('addons_path = %s\n' % (addons_path))
-        fos.write('db_host = localhost\ndb_port = 5432\n')
+        fos.write('db_host = %s\ndb_port = %s\n' % (self.kutty_config['odoo_db']['host'],self.kutty_config['odoo_db']['port']))
         fos.write('db_user = %s\n' % project_name)
         fos.write('db_password = redhat19\n')
         fos.write('xmlrpc_port = %s\n' % project_port_no)
@@ -56,6 +73,7 @@ class ServerActivity:
         fos.close()
 
     def install(self, config):
+        os.chdir(self.projects_home)
         project_name = config['project']['name']
         git_url = config['git']['url']
         git_branch = config['git']['branch']
@@ -76,17 +94,14 @@ class ServerActivity:
         if addons_checkout_path:
             self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
 
-        # Setup db username
-        cmd = ['sudo', 'su', '-', 'postgres', '-c', 'createuser -s --createdb %s' % project_name]
-        ps = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-        ps.communicate()
-
+        self._create_odoo_db_user(project_name)
         self._setup_odoo_configuration(config)
 
         print "Installation Done"
         return
 
     def remove(self, project_name):
+        os.chdir(self.projects_home)
         self.stop(project_name)
         shutil.rmtree(project_name)
         cmd = ['sudo', 'su', '-', 'postgres', '-c', 'dropuser %s' % project_name]
@@ -95,16 +110,16 @@ class ServerActivity:
         print "Project %s removed successfully" % project_name
         return
 
-    def pid_kill(self, pid_file):
-        pid = self.get_pid(pid_file)
-        if self.pid_exists(pid):
+    def _pid_kill(self, pid_file):
+        pid = self._get_pid(pid_file)
+        if self._pid_exists(pid):
             os.kill(int(pid), signal.SIGINT)
         return
 
-    def pid_exists(self, pid):
+    def _pid_exists(self, pid):
         return os.path.exists('/proc/' + pid)
 
-    def get_pid(self, pid_file):
+    def _get_pid(self, pid_file):
         pid = '0'
         if os.path.isfile(pid_file):
             fis = open(pid_file, 'r')
@@ -113,28 +128,31 @@ class ServerActivity:
         return pid
 
     def stop(self, project_name):
+        os.chdir(self.projects_home)
         print 'Stopping project ', project_name
         os.chdir(project_name)
-        if not self.pid_exists(self.get_pid(self.pid_file)):
+        if not self._pid_exists(self._get_pid(self.pid_file)):
             print 'Server not running'
             os.chdir('..')
             return
-        self.pid_kill(self.pid_file)
+        self._pid_kill(self.pid_file)
         print 'Project stopped'
         os.chdir('..')
         return
 
     def start(self, project_name):
+        os.chdir(self.projects_home)
         print 'Starting project ', project_name
         os.chdir(project_name)
-        if self.pid_exists(self.get_pid(self.pid_file)):
+        if self._pid_exists(self._get_pid(self.pid_file)):
             print 'Already server running'
             return
-        os.system('%s -c openerp-server.conf & echo $! > .pid' % self.startup_file_location())
+        os.system('%s -c openerp-server.conf & echo $! > .pid' % self._startup_file_location())
         print 'Project started'
         return
 
     def upgradesrc(self, project_name):
+        os.chdir(self.projects_home)
         print 'Upgrading project source only'
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
@@ -144,11 +162,12 @@ class ServerActivity:
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf & echo $! > .pid' % self.startup_file_location())
+        os.system('%s -c openerp-server.conf & echo $! > .pid' % self._startup_file_location())
         print 'Project upgraded with source and started'
         return
 
     def upgrade(self, project_name, module):
+        os.chdir(self.projects_home)
         print 'Upgrading project ', project_name
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
@@ -158,19 +177,21 @@ class ServerActivity:
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self.startup_file_location(), module))
+        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
         print 'Project upgraded and started'
         return
 
     def updatedb(self, project_name, module):
+        os.chdir(self.projects_home)
         print 'Updating DB of ', project_name
         self.stop(project_name)
         os.chdir(project_name)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self.startup_file_location(), module))
+        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
         print 'Project DB updated'
         return
 
     def switch(self, project_name, branch, module):
+        os.chdir(self.projects_home)
         print 'Switching into branch %s for project %s' % (branch, project_name)
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
@@ -181,6 +202,19 @@ class ServerActivity:
         subprocess.call(['git', 'fetch'])
         subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self.startup_file_location(), module))
+        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
         print 'Branch swithced and started'
         return
+
+    def _create_odoo_db_user(self,project_name):
+        # # Setup db username
+        try:
+            conn = psycopg2.connect(database="template1", user=self.kutty_config['odoo_db']['username'], password=self.kutty_config['odoo_db']['password'], host=self.kutty_config['odoo_db']['host'], port=self.kutty_config['odoo_db']['port'])
+            cur = conn.cursor()
+            cur.execute('CREATE USER "%s" WITH CREATEDB NOCREATEUSER PASSWORD \'%s\'' % (project_name, "redhat19"))
+            conn.commit()
+            conn.close()
+        except psycopg2.Error as e:
+            print "Not able to create user"
+            print e.pgerror
+

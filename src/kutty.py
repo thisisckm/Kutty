@@ -12,13 +12,13 @@ from activity import server
 
 __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
-__projects_home = None
-__server_list_file = 'servername.txt'
 
-if __projects_home is None:
-    __projects_home = os.path.dirname(os.path.realpath(__file__))
 
-serverActivity = server.ServerActivity(__projects_home, __server_list_file)
+kutty_config = ConfigParser.ConfigParser()
+kutty_config.read("kutty.config")
+kutty_config = kutty_config._sections
+
+serverActivity = server.ServerActivity(kutty_config)
 
 
 def extant_file(filepath):
@@ -38,13 +38,6 @@ def config_file_dict(cfg_filename):
     return return_value
 
 def main():
-    if not os.path.exists(__projects_home):
-        os.mkdir(__projects_home)
-    os.chdir(__projects_home)
-
-    if not os.path.exists(__server_list_file):
-        os.mknod(__server_list_file)
-
     parser = argparse.ArgumentParser(description='Kutty - from Axcensa')
     subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands', help='additional help')
 
@@ -77,23 +70,23 @@ def main():
 
     parser_create = subparsers.add_parser('stop')
     parser_create.set_defaults(which='stop')
-    parser_create.add_argument('project', help='Project server to be Stopped', type=extant_file)
+    parser_create.add_argument('project', help='Project server to be Stopped')
 
     parser_create = subparsers.add_parser('start')
     parser_create.set_defaults(which='start')
-    parser_create.add_argument('project', help='Project server to be Start', type=extant_file)
+    parser_create.add_argument('project', help='Project server to be Start')
 
     parser_create = subparsers.add_parser('restart')
     parser_create.set_defaults(which='restart')
-    parser_create.add_argument('project', help='Project server to be restart', type=extant_file)
+    parser_create.add_argument('project', help='Project server to be restart')
 
     parser_create = subparsers.add_parser('log')
     parser_create.set_defaults(which='log')
-    parser_create.add_argument('project', help='Project server to be restart', type=extant_file)
+    parser_create.add_argument('project', help='Project server to be restart')
 
     parser_create = subparsers.add_parser('remove')
     parser_create.set_defaults(which='remove')
-    parser_create.add_argument('project', help='Project server to be removed', type=extant_file)
+    parser_create.add_argument('project', help='Project server to be removed')
 
     args = vars(parser.parse_args())
 
