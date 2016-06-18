@@ -3,7 +3,9 @@ import os
 import os.path
 import argparse
 import time
+import ConfigParser
 from activity import server
+
 # To change this license header, choose License Headers in Project Properties.
 # To change this template file, choose Tools | Templates
 # and open the template in the editor.
@@ -13,7 +15,6 @@ __date__ = "$13 Sep, 2014 9:05:42 PM$"
 __projects_home = None
 __server_list_file = 'servername.txt'
 
-
 if __projects_home is None:
     __projects_home = os.path.dirname(os.path.realpath(__file__))
 
@@ -21,12 +22,22 @@ serverActivity = server.ServerActivity(__projects_home, __server_list_file)
 
 
 def extant_file(filepath):
-        if not os.path.exists(filepath):
-            raise argparse.ArgumentTypeError("{0} does not exist".format(filepath))
-        return filepath
+    if not os.path.exists(filepath):
+        raise argparse.ArgumentTypeError("{0} does not exist".format(filepath))
+    return filepath
+
+
+def config_file_dict(cfg_filename):
+    cfg = ConfigParser.ConfigParser()
+    cfg.read(cfg_filename)
+    return_value = dict(cfg._sections)
+    if return_value.has_key('addons'):
+        return_value['has_addons'] = True
+    else:
+        return_value['has_addons'] = False
+    return return_value
 
 def main():
-    
     if not os.path.exists(__projects_home):
         os.mkdir(__projects_home)
     os.chdir(__projects_home)
@@ -47,12 +58,12 @@ def main():
     parser_create = subparsers.add_parser('upgrade')
     parser_create.set_defaults(which='upgrade')
     parser_create.add_argument('project', help='Project name to be upgraded')
-    parser_create.add_argument('--update', default="all",help='Module to be updated')
+    parser_create.add_argument('--update', default="all", help='Module to be updated')
 
     parser_create = subparsers.add_parser('updatedb')
     parser_create.set_defaults(which='updatedb')
     parser_create.add_argument('project', help='Project name to be update')
-    parser_create.add_argument('--update', default="all",help='Module to be updated')
+    parser_create.add_argument('--update', default="all", help='Module to be updated')
 
     parser_create = subparsers.add_parser('upgradesrc')
     parser_create.set_defaults(which='upgradesrc')
@@ -62,7 +73,7 @@ def main():
     parser_create.set_defaults(which='switch')
     parser_create.add_argument('project', help='Project name to be where switch of branch')
     parser_create.add_argument('branch', help='Branch to be switched')
-    parser_create.add_argument('--update', default="all",help='Module to be updated')
+    parser_create.add_argument('--update', default="all", help='Module to be updated')
 
     parser_create = subparsers.add_parser('stop')
     parser_create.set_defaults(which='stop')
@@ -84,7 +95,6 @@ def main():
     parser_create.set_defaults(which='remove')
     parser_create.add_argument('project', help='Project server to be removed', type=extant_file)
 
-
     args = vars(parser.parse_args())
 
     if args['which'] == 'init':
@@ -92,7 +102,8 @@ def main():
 
     elif args['which'] == 'install':
         cfg_filename = args['config-file']
-        serverActivity.install(cfg_filename)
+        config = config_file_dict(cfg_filename)
+        serverActivity.install(config)
 
     elif args['which'] == 'start':
         project_name = args['project']
@@ -102,13 +113,13 @@ def main():
         project_name = args['project']
         serverActivity.stop(project_name)
 
-    elif args['which'] == 'restart':
+    elif args['which'] == "restart":
         project_name = args['project']
         serverActivity.stop(project_name)
         time.sleep(5)
         serverActivity.start(project_name)
 
-    elif args['which'] == 'remove':
+    elif args['which'] == "remove":
         project_name = args['project']
         serverActivity.remove(project_name)
 
@@ -149,6 +160,7 @@ def main():
         print args['which']
 
     return
+
 
 if __name__ == "__main__":
     main()
