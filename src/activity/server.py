@@ -39,6 +39,7 @@ class OdooInstanceActivity:
         output = template % (server_name, portno, portno)
         temp_file = tempfile.gettempdir() + os.path.sep + server_name
         conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
+        link_file = "%s%s%s.conf" %(self.kutty_config['apache']['se_path'], os.path.sep, server_name)
 
         ostream = open(temp_file, 'w')
         ostream.write(output)
@@ -47,12 +48,15 @@ class OdooInstanceActivity:
 
         command = ['sudo', 'cp', temp_file,conf_file]
         subprocess.Popen(command, stdin=subprocess.PIPE)
+        command = ['sudo', 'ln', '-s', conf_file, link_file]
+        subprocess.Popen(command, stdin=subprocess.PIPE)
         command = ['sudo','apachectl', '-k', 'graceful']
         subprocess.Popen(command, stdin=subprocess.PIPE)
 
     def _remove_apache_config(self,server_name):
         conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
-        command = ['sudo', 'rm', conf_file]
+        link_file = "%s%s%s.conf" %(self.kutty_config['apache']['se_path'], os.path.sep, server_name)
+        command = ['sudo', 'rm', conf_file, link_file]
         subprocess.Popen(command, stdin=subprocess.PIPE)
         command = ['sudo','apachectl', '-k', 'graceful']
         subprocess.Popen(command, stdin=subprocess.PIPE)
