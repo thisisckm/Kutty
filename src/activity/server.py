@@ -5,9 +5,10 @@ import signal
 import subprocess
 import psycopg2
 import sys
+import tempfile
 
 
-class ServerActivity:
+class OdooInstanceActivity:
     def __init__(self, kutty_config):
         self.kutty_config = kutty_config
         self.projects_home = kutty_config['default']['project_home']
@@ -27,6 +28,34 @@ class ServerActivity:
         if not os.path.exists(self.projects_home):
             os.mkdir(self.projects_home)
 
+
+    def _update_apache_config(self, server_name, portno):
+        template = "<VirtualHost *:80>\n"
+        template = template + "ServerName %s\n"
+        template = template + "ProxyPass / http://localhost:%s/\n"
+        template = template + "ProxyPassReverse / http://localhost:%s/\n"
+        template = template + "</VirtualHost>"
+
+        output = template % (server_name, portno, portno)
+        temp_file = tempfile.gettempdir() + os.path.sep + server_name
+        conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
+
+        ostream = open(temp_file, 'w')
+        ostream.write(output)
+        ostream.flush()
+        ostream.close()
+
+        command = ['sudo', 'cp', temp_file,conf_file]
+        subprocess.Popen(command, stdin=subprocess.PIPE)
+        command = ['sudo','apachectl', '-k', 'graceful']
+        subprocess.Popen(command, stdin=subprocess.PIPE)
+
+    def _remove_apache_config(self,server_name):
+        conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
+        command = ['sudo', 'rm', conf_file]
+        subprocess.Popen(command, stdin=subprocess.PIPE)
+        command = ['sudo','apachectl', '-k', 'graceful']
+        subprocess.Popen(command, stdin=subprocess.PIPE)
 
     def _startup_file_location(self):
         if os.path.isdir('odoo'):
@@ -96,6 +125,7 @@ class ServerActivity:
 
         self._create_odoo_db_user(project_name)
         self._setup_odoo_configuration(config)
+        self._update_apache_config(project_name, config['project']['port_no'])
 
         print "Installation Done"
         return
@@ -104,9 +134,7 @@ class ServerActivity:
         os.chdir(self.projects_home)
         self.stop(project_name)
         shutil.rmtree(project_name)
-        cmd = ['sudo', 'su', '-', 'postgres', '-c', 'dropuser %s' % project_name]
-        ps = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-
+        self._remove_apache_config(project_name)
         print "Project %s removed successfully" % project_name
         return
 

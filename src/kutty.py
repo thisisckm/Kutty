@@ -12,14 +12,9 @@ from activity import server
 
 __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
+__version__ = '0.1beta'
 
-
-kutty_config = ConfigParser.ConfigParser()
-kutty_config.read("kutty.config")
-kutty_config = kutty_config._sections
-
-serverActivity = server.ServerActivity(kutty_config)
-
+odooInstanceActivity = None
 
 def extant_file(filepath):
     if not os.path.exists(filepath):
@@ -38,7 +33,7 @@ def config_file_dict(cfg_filename):
     return return_value
 
 def main():
-    parser = argparse.ArgumentParser(description='Kutty - from Axcensa')
+    parser = argparse.ArgumentParser(description='Kutty - from Axcensa\nVersion %s'%__version__)
     subparsers = parser.add_subparsers(title='subcommands', description='valid subcommands', help='additional help')
 
     parser_create = subparsers.add_parser('init')
@@ -91,50 +86,50 @@ def main():
     args = vars(parser.parse_args())
 
     if args['which'] == 'init':
-        serverActivity.system_init()
+        odooInstanceActivity.system_init()
 
     elif args['which'] == 'install':
         cfg_filename = args['config-file']
         config = config_file_dict(cfg_filename)
-        serverActivity.install(config)
+        odooInstanceActivity.install(config)
 
     elif args['which'] == 'start':
         project_name = args['project']
-        serverActivity.start(project_name)
+        odooInstanceActivity.start(project_name)
 
     elif args['which'] == 'stop':
         project_name = args['project']
-        serverActivity.stop(project_name)
+        odooInstanceActivity.stop(project_name)
 
     elif args['which'] == "restart":
         project_name = args['project']
-        serverActivity.stop(project_name)
+        odooInstanceActivity.stop(project_name)
         time.sleep(5)
-        serverActivity.start(project_name)
+        odooInstanceActivity.start(project_name)
 
     elif args['which'] == "remove":
         project_name = args['project']
-        serverActivity.remove(project_name)
+        odooInstanceActivity.remove(project_name)
 
     elif args['which'] == 'upgrade':
         project_name = args['project']
         module = args['update']
-        serverActivity.upgrade(project_name, module)
+        odooInstanceActivity.upgrade(project_name, module)
 
     elif args['which'] == 'upgradesrc':
         project_name = args['project']
-        serverActivity.upgradesrc(project_name)
+        odooInstanceActivity.upgradesrc(project_name)
 
     elif args['which'] == 'updatedb':
         project_name = args['project']
         module = args['update']
-        serverActivity.updatedb(project_name, module)
+        odooInstanceActivity.updatedb(project_name, module)
 
     elif args['which'] == 'switch':
         project_name = args['project']
         module = args['update']
         branch = args['branch']
-        serverActivity.switch(project_name, branch, module)
+        odooInstanceActivity.switch(project_name, branch, module)
 
     elif args['which'] == 'log':
         import tailer
@@ -146,7 +141,7 @@ def main():
 
     elif args['which'] == 'remove':
         project_name = args['project']
-        serverActivity.remove(project_name)
+        odooInstanceActivity.remove(project_name)
 
 
     else:
@@ -156,4 +151,9 @@ def main():
 
 
 if __name__ == "__main__":
+    kutty_config = ConfigParser.ConfigParser()
+    kutty_config.read("kutty.config")
+    kutty_config = kutty_config._sections
+
+    odooInstanceActivity = server.OdooInstanceActivity(kutty_config)
     main()
