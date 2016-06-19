@@ -2,7 +2,6 @@
 import os
 import os.path
 import argparse
-import time
 import ConfigParser
 from activity import server
 
@@ -14,7 +13,6 @@ __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
 __version__ = '0.1beta'
 
-odooInstanceActivity = None
 
 def extant_file(filepath):
     if not os.path.exists(filepath):
@@ -85,6 +83,12 @@ def main():
 
     args = vars(parser.parse_args())
 
+    kutty_config = ConfigParser.ConfigParser()
+    kutty_config.read("kutty.config")
+    kutty_config = kutty_config._sections
+
+    odooInstanceActivity = server.OdooInstanceActivity(kutty_config)
+
     if args['which'] == 'init':
         odooInstanceActivity.system_init()
 
@@ -103,9 +107,7 @@ def main():
 
     elif args['which'] == "restart":
         project_name = args['project']
-        odooInstanceActivity.stop(project_name)
-        time.sleep(5)
-        odooInstanceActivity.start(project_name)
+        odooInstanceActivity.restart(project_name)
 
     elif args['which'] == "remove":
         project_name = args['project']
@@ -151,9 +153,4 @@ def main():
 
 
 if __name__ == "__main__":
-    kutty_config = ConfigParser.ConfigParser()
-    kutty_config.read("kutty.config")
-    kutty_config = kutty_config._sections
-
-    odooInstanceActivity = server.OdooInstanceActivity(kutty_config)
     main()

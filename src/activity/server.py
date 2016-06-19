@@ -6,6 +6,7 @@ import subprocess
 import psycopg2
 import sys
 import tempfile
+import time
 
 
 class OdooInstanceActivity:
@@ -182,6 +183,23 @@ class OdooInstanceActivity:
         os.system('%s -c openerp-server.conf & echo $! > .pid' % self._startup_file_location())
         print 'Project started'
         return
+
+    def server_status(self, project_name):
+        os.chdir(self.projects_home)
+        os.chdir(project_name)
+        if self._pid_exists(self._get_pid(self.pid_file)):
+            return 'running'
+        else:
+            return 'stopped'
+
+    def restart(self,project_name):
+        self.stop(project_name)
+        while True:
+            time.sleep(2)
+            if self.server_status(project_name) == 'stopped':
+                break
+        self.start(project_name)
+
 
     def upgradesrc(self, project_name):
         os.chdir(self.projects_home)
