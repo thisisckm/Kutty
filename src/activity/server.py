@@ -207,8 +207,8 @@ class OdooInstanceActivity:
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
         os.chdir(project_path)
-        os.path.isdir('addons')
-        os.chdir('addons')
+        if os.path.isdir('addons'):
+            os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
@@ -222,8 +222,8 @@ class OdooInstanceActivity:
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
         os.chdir(project_path)
-        os.path.isdir('addons')
-        os.chdir('addons')
+        if os.path.isdir('addons'):
+            os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
@@ -246,8 +246,8 @@ class OdooInstanceActivity:
         self.stop(project_name)
         project_path = self.projects_home + '/' + project_name
         os.chdir(project_path)
-        os.path.isdir('addons')
-        os.chdir('addons')
+        if os.path.isdir('addons'):
+            os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'fetch'])
         subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
