@@ -1,9 +1,12 @@
 #!/usr/bin/python
+import ConfigParser
+import argparse
+import getpass
 import os
 import os.path
-import argparse
-import ConfigParser
-from activity import server
+
+from kutty.odoo import activity as odoo_activity
+from kutty.usrmng import activity as usermng_activity
 
 # To change this license header, choose License Headers in Project Properties.
 # To change this template file, choose Tools | Templates
@@ -13,6 +16,11 @@ __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
 __version__ = '0.1beta'
 
+
+def get_user_credential():
+    username = raw_input('Username: ')
+    pwd = getpass.getpass('Password: ')
+    return username, pwd
 
 def extant_file(filepath):
     if not os.path.exists(filepath):
@@ -81,57 +89,129 @@ def main():
     parser_create.set_defaults(which='remove')
     parser_create.add_argument('project', help='Project server to be removed')
 
+    # User Management - Arguemnet Process
+    parser_create = subparsers.add_parser('adduser')
+    parser_create.set_defaults(which='adduser')
+    parser_create.add_argument('username', help='New user to be added ')
+
+    parser_create = subparsers.add_parser('listuser')
+    parser_create.set_defaults(which='listuser')
+
+    parser_create = subparsers.add_parser('deluser')
+    parser_create.set_defaults(which='deluser')
+    parser_create.add_argument('username', help='user to be removed ')
+
+    parser_create = subparsers.add_parser('enableusr')
+    parser_create.set_defaults(which='enableusr')
+    parser_create.add_argument('username', help='user to be enabled')
+
+    parser_create = subparsers.add_parser('disableusr')
+    parser_create.set_defaults(which='disableusr')
+    parser_create.add_argument('username', help='user to be disabled')
+
+    parser_create = subparsers.add_parser('chgpwd')
+    parser_create.set_defaults(which='chgpwd')
+    parser_create.add_argument('username', help='user\'s password to be changed')
+
     args = vars(parser.parse_args())
 
     kutty_config = ConfigParser.ConfigParser()
     kutty_config.read("kutty.config")
     kutty_config = kutty_config._sections
 
-    odooInstanceActivity = server.OdooInstanceActivity(kutty_config)
+    odooInstanceActivity = odoo_activity.OdooInstanceActivity(kutty_config)
+    userManagementActivity = usermng_activity.UserManagementActivity()
+
 
     if args['which'] == 'init':
         odooInstanceActivity.system_init()
 
     elif args['which'] == 'install':
-        cfg_filename = args['config-file']
-        config = config_file_dict(cfg_filename)
-        odooInstanceActivity.install(config)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                cfg_filename = args['config-file']
+                config = config_file_dict(cfg_filename)
+                odooInstanceActivity.install(config)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'start':
-        project_name = args['project']
-        odooInstanceActivity.start(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.start(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'stop':
-        project_name = args['project']
-        odooInstanceActivity.stop(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.stop(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == "restart":
-        project_name = args['project']
-        odooInstanceActivity.restart(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.restart(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
+
 
     elif args['which'] == "remove":
-        project_name = args['project']
-        odooInstanceActivity.remove(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.remove(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'upgrade':
-        project_name = args['project']
-        module = args['update']
-        odooInstanceActivity.upgrade(project_name, module)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                module = args['update']
+                odooInstanceActivity.upgrade(project_name, module)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'upgradesrc':
-        project_name = args['project']
-        odooInstanceActivity.upgradesrc(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.upgradesrc(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'updatedb':
-        project_name = args['project']
-        module = args['update']
-        odooInstanceActivity.updatedb(project_name, module)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                module = args['update']
+                odooInstanceActivity.updatedb(project_name, module)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'switch':
-        project_name = args['project']
-        module = args['update']
-        branch = args['branch']
-        odooInstanceActivity.switch(project_name, branch, module)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                module = args['update']
+                branch = args['branch']
+                odooInstanceActivity.switch(project_name, branch, module)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'log':
         import tailer
@@ -142,12 +222,86 @@ def main():
             print line
 
     elif args['which'] == 'remove':
-        project_name = args['project']
-        odooInstanceActivity.remove(project_name)
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                odooInstanceActivity.remove(project_name)
+        except usermng_activity.UMException as ex:
+            print ex.message
 
+    elif args['which'] == 'adduser':
+        user, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                new_username = args['username']
+                new_pwd = getpass.getpass('Password For New User %s: ' % new_username)
 
-    else:
-        print args['which']
+                msg = 'Super User?'
+                type = 'normal'
+                is_super = raw_input("%s (y/N) " % msg).lower() == 'y'
+                if is_super:
+                    type = 'admin'
+                userManagementActivity.adduser(new_username, new_pwd, type=type)
+        except usermng_activity.UMException as exp:
+            print exp.message
+
+    elif args['which'] == 'listuser':
+        user, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                print 'Username\t\tType\t\tStatus'
+                print '----------------------------------------------'
+                for elm in userManagementActivity.listuser():
+                    print '%s\t\t\t%s\t\t%s' % (elm['user'].strip(), elm['type'], elm['active'])
+        except usermng_activity.UMException as ex:
+            print ex.message
+
+    elif args['which'] == 'deluser':
+        user, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                username = args['username']
+                msg = 'Are sure to remove this user %s ?' % username
+                approved = raw_input("%s (y/N) " % msg).lower() == 'y'
+                if approved:
+                    userManagementActivity.deluser(username)
+        except usermng_activity.UMException as ex:
+            print ex.message
+
+    elif args['which'] == 'enableusr':
+        user, pwd = get_user_credential()
+        username = args['username']
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                userManagementActivity.activitate_user(username, True)
+        except usermng_activity.UMException as ex:
+            print ex.message
+
+    elif args['which'] == 'disableusr':
+        user, pwd = get_user_credential()
+        username = args['username']
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                userManagementActivity.activitate_user(username, False)
+        except usermng_activity.UMException as ex:
+            print ex.message
+
+    elif args['which'] == 'chgpwd':
+        user, pwd = get_user_credential()
+        username = args['username']
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
+                while True:
+                    new_pwd = getpass.getpass('New Password For User %s: ' % username)
+                    retype_new_pwd = getpass.getpass('Re-Type New Password: ')
+                    if new_pwd == retype_new_pwd:
+                        userManagementActivity.change_password(username, new_pwd)
+                        break
+                    else:
+                        print 'Password mismatch, please try again'
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     return
 

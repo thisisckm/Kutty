@@ -1,10 +1,9 @@
 import os
 import os.path
+import psycopg2
 import shutil
 import signal
 import subprocess
-import psycopg2
-import sys
 import tempfile
 import time
 
@@ -14,17 +13,6 @@ class OdooInstanceActivity:
         self.kutty_config = kutty_config
         self.projects_home = kutty_config['default']['project_home']
         self.pid_file = '.pid'
-
-        try:
-            host = kutty_config['odoo_db']['host']
-            port = kutty_config['odoo_db']['port']
-            user = kutty_config['odoo_db']['username']
-            password = kutty_config['odoo_db']['password']
-            conn = psycopg2.connect("dbname='template1' host='%s' port='%s' user='%s' password='%s'" % (host,port,user,password))
-            conn.close()
-        except:
-            print "Can't able to connect to the database"
-            sys.exit(1)
 
         if not os.path.exists(self.projects_home):
             os.mkdir(self.projects_home)
