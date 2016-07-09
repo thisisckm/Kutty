@@ -4,9 +4,14 @@ import argparse
 import getpass
 import os
 import os.path
+from OpenSSL import SSL
+
+from flask import Flask
 
 from kutty.odoo import activity as odoo_activity
+from kutty.odoo.ws import OdooWS
 from kutty.usrmng import activity as usermng_activity
+from kutty.usrmng.ws import UserManagementWS
 
 # To change this license header, choose License Headers in Project Properties.
 # To change this template file, choose Tools | Templates
@@ -16,6 +21,15 @@ __author__ = "advik"
 __date__ = "$13 Sep, 2014 9:05:42 PM$"
 __version__ = '0.1beta'
 
+
+def start_ws_server():
+    app = Flask(__name__)
+    OdooWS.register(app)
+    UserManagementWS.register(app)
+    context = SSL.Context(SSL.SSLv23_METHOD)
+    context.use_privatekey_file('cert/ssl.key')
+    context.use_certificate_file('cert/ssl.cert')
+    app.run(host='0.0.0.0', port=9090, debug=True, ssl_context=context)
 
 def get_user_credential():
     username = raw_input('Username: ')
@@ -48,6 +62,9 @@ def main():
     parser_create = subparsers.add_parser('install')
     parser_create.set_defaults(which='install')
     parser_create.add_argument('config-file', help='Project configuration file', type=extant_file)
+
+    parser_create = subparsers.add_parser('list')
+    parser_create.set_defaults(which='list')
 
     parser_create = subparsers.add_parser('upgrade')
     parser_create.set_defaults(which='upgrade')
@@ -89,6 +106,10 @@ def main():
     parser_create.set_defaults(which='remove')
     parser_create.add_argument('project', help='Project server to be removed')
 
+    parser_create = subparsers.add_parser('sendlog')
+    parser_create.set_defaults(which='sendlog')
+    parser_create.add_argument('project', help='Log file of the project')
+
     # User Management - Arguemnet Process
     parser_create = subparsers.add_parser('adduser')
     parser_create.set_defaults(which='adduser')
@@ -113,6 +134,10 @@ def main():
     parser_create.set_defaults(which='chgpwd')
     parser_create.add_argument('username', help='user\'s password to be changed')
 
+    # Web Service - Parameter
+    parser_create = subparsers.add_parser('startws')
+    parser_create.set_defaults(which='startws')
+
     args = vars(parser.parse_args())
 
     kutty_config = ConfigParser.ConfigParser()
@@ -135,6 +160,17 @@ def main():
                 odooInstanceActivity.install(config)
         except usermng_activity.UMException as ex:
             print ex.message
+        except odoo_activity.OAException as ex:
+            print ex.message
+
+    elif args['which'] == 'list':
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                for elm in odooInstanceActivity.list_instance():
+                    print elm
+        except usermng_activity.UMException as ex:
+            print ex.message
 
     elif args['which'] == 'start':
         usr, pwd = get_user_credential()
@@ -143,6 +179,8 @@ def main():
                 project_name = args['project']
                 odooInstanceActivity.start(project_name)
         except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
             print ex.message
 
     elif args['which'] == 'stop':
@@ -153,6 +191,8 @@ def main():
                 odooInstanceActivity.stop(project_name)
         except usermng_activity.UMException as ex:
             print ex.message
+        except odoo_activity.OAException as ex:
+            print ex.message
 
     elif args['which'] == "restart":
         usr, pwd = get_user_credential()
@@ -162,7 +202,8 @@ def main():
                 odooInstanceActivity.restart(project_name)
         except usermng_activity.UMException as ex:
             print ex.message
-
+        except odoo_activity.OAException as ex:
+            print ex.message
 
     elif args['which'] == "remove":
         usr, pwd = get_user_credential()
@@ -171,6 +212,8 @@ def main():
                 project_name = args['project']
                 odooInstanceActivity.remove(project_name)
         except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
             print ex.message
 
     elif args['which'] == 'upgrade':
@@ -182,6 +225,8 @@ def main():
                 odooInstanceActivity.upgrade(project_name, module)
         except usermng_activity.UMException as ex:
             print ex.message
+        except odoo_activity.OAException as ex:
+            print ex.message
 
     elif args['which'] == 'upgradesrc':
         usr, pwd = get_user_credential()
@@ -190,6 +235,8 @@ def main():
                 project_name = args['project']
                 odooInstanceActivity.upgradesrc(project_name)
         except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
             print ex.message
 
     elif args['which'] == 'updatedb':
@@ -201,6 +248,8 @@ def main():
                 odooInstanceActivity.updatedb(project_name, module)
         except usermng_activity.UMException as ex:
             print ex.message
+        except odoo_activity.OAException as ex:
+            print ex.message
 
     elif args['which'] == 'switch':
         usr, pwd = get_user_credential()
@@ -211,6 +260,20 @@ def main():
                 branch = args['branch']
                 odooInstanceActivity.switch(project_name, branch, module)
         except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
+            print ex.message
+
+    elif args['which'] == 'sendlog':
+        usr, pwd = get_user_credential()
+        try:
+            if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                project_name = args['project']
+                user_profile = userManagementActivity.get_user(usr)
+                odooInstanceActivity.send_log(project_name, user_profile['email'])
+        except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
             print ex.message
 
     elif args['which'] == 'log':
@@ -228,6 +291,8 @@ def main():
                 project_name = args['project']
                 odooInstanceActivity.remove(project_name)
         except usermng_activity.UMException as ex:
+            print ex.message
+        except odoo_activity.OAException as ex:
             print ex.message
 
     elif args['which'] == 'adduser':
@@ -302,6 +367,9 @@ def main():
                         print 'Password mismatch, please try again'
         except usermng_activity.UMException as ex:
             print ex.message
+
+    elif args['which'] == 'startws':
+        start_ws_server()
 
     return
 

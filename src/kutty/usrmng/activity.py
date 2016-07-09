@@ -1,8 +1,6 @@
 import hashlib
 
-import pymongo
-from pymongo import MongoClient
-
+from ..activity import Activity
 
 class UserCredential:
     username = None
@@ -13,36 +11,35 @@ class UserCredential:
         self.password = hashlib.md5(password).hexdigest()
 
 
-class UserManagementActivity:
+class UserManagementActivity(Activity):
     def __init__(self):
-        self.con = MongoClient()
         self._first_deploy()
-
-    def _first_deploy(self):
-        if 'kutty' not in self.con.database_names():
-            self.users = self.con['kutty']['users']
-            self.users.create_index([('user', pymongo.ASCENDING)], unique=True)
-            md5_password = hashlib.md5("password").hexdigest()
-            self.users.insert_one({'user': 'admin', 'password': md5_password, 'type': 'admin', 'active': True})
-        else:
-            self.users = self.con['kutty']['users']
 
     def _has_user_exits(self, username):
         if self.users.find({'user': username}).count() == 0:
             return False
         return True
 
-    def adduser(self, username, password, type='normal'):
+    def adduser(self, username, password, type='normal', name='Unknown', email='myname@youcompany.com'):
         if username == 'admin':
             raise UMException('Username - admin is not allowed')
         elif not self._has_user_exits(username):
             md5_password = hashlib.md5(password).hexdigest()
-            self.users.insert_one({'user': username, 'password': md5_password, 'type': type, 'active': True})
+            self.users.insert_one(
+                {'user': username, 'password': md5_password, 'type': type, 'active': True, 'name': name, 'email': email,
+                 'image': self._get_image()})
         else:
             raise UMException('Username - %s is already exits' % username)
 
     def listuser(self):
-        return self.users.find({}, {'user': 1, 'type': 1, 'active': 1})
+        returnValue = []
+        for elm in self.users.find({}, {'_id': 0, 'password': 0, 'image': 0}):
+            returnValue.append(elm)
+        print returnValue
+        return returnValue
+
+    def get_user(self, user):
+        return self.users.find_one({'user': user}, {'_id': 0, 'password': 0})
 
     def activitate_user(self, username, active):
         if username == 'admin':

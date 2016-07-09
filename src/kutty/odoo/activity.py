@@ -3,12 +3,18 @@ import os.path
 import psycopg2
 import shutil
 import signal
+import smtplib
 import subprocess
 import tempfile
 import time
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from ..activity import Activity
 
 
-class OdooInstanceActivity:
+class OdooInstanceActivity(Activity):
+
     def __init__(self, kutty_config):
         self.kutty_config = kutty_config
         self.projects_home = kutty_config['default']['project_home']
@@ -16,6 +22,8 @@ class OdooInstanceActivity:
 
         if not os.path.exists(self.projects_home):
             os.mkdir(self.projects_home)
+
+        self._first_deploy()
 
 
     def _update_apache_config(self, server_name, portno):
@@ -77,7 +85,6 @@ class OdooInstanceActivity:
     def _setup_odoo_configuration(self, config):
         # Setup openerp-server.conf file
         project_name = config['project']['name']
-        project_port_no = config['project']['port_no']
 
         os.chdir(project_name)
         fos = open('openerp-server.conf', 'w')
@@ -90,24 +97,47 @@ class OdooInstanceActivity:
         fos.write('db_host = %s\ndb_port = %s\n' % (self.kutty_config['odoo_db']['host'],self.kutty_config['odoo_db']['port']))
         fos.write('db_user = %s\n' % project_name)
         fos.write('db_password = redhat19\n')
-        fos.write('xmlrpc_port = %s\n' % project_port_no)
         fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
         fos.close()
+        return
+
+    def has_project_exits(self, project_name):
+        if self.odoo_instances.count({'name': project_name}) == 0:
+            return False
+        return True
+
+    def _find_unused_port(self):
+        result_set = self.odoo_instances.find({}, {'port_no': 1, '_id': 0}).sort("port_no", 1)
+        count = 8001
+        port_no = str(count)
+        for elm in result_set:
+            if port_no != elm['port_no']:
+                break
+            else:
+                count += 1
+                port_no = str(count)
+
+        return port_no
 
     def install(self, config):
-        os.chdir(self.projects_home)
         project_name = config['project']['name']
+        if self.has_project_exits(project_name):
+            raise OAException('Project already exists')
+        os.chdir(self.projects_home)
+        project_title = config['project']['title']
+        self.odoo_instances.insert_one(
+            {'title': project_title, 'name': project_name, 'status': 'Deploying', 'port_no': self._find_unused_port()})
         git_url = config['git']['url']
         git_branch = config['git']['branch']
 
         print "Installing project", project_name
         if os.path.isdir(project_name):
-            print 'Project already exists'
-            return
+            raise OAException('Project already exists')
+
         # Download source code
         checkout_path = project_name
         addons_checkout_path = None
-        if config['has_addons']:
+        if config.get('has_addons', False):
             checkout_path = checkout_path + '/odoo'
             addons_checkout_path = project_name + '/addons'
         os.makedirs(checkout_path)
@@ -117,17 +147,31 @@ class OdooInstanceActivity:
             self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
 
         self._create_odoo_db_user(project_name)
-        self._setup_odoo_configuration(config)
-        self._update_apache_config(project_name, config['project']['port_no'])
+        port_no = self._setup_odoo_configuration(config)
+        self._update_apache_config(project_name, port_no)
 
+        self._update_server_status(project_name, 'Stopped')
         print "Installation Done"
         return
 
+    def list_instance(self):
+        ouput = []
+        for elm in self.odoo_instances.find({}, {'_id': 0}):
+            ouput.append(elm)
+
+        return ouput
+
+    def get_instance_info(self, name):
+        return self.odoo_instances.find_one({'name': name}, {'_id': 0})
+
     def remove(self, project_name):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         self.stop(project_name)
         shutil.rmtree(project_name)
         self._remove_apache_config(project_name)
+        self.odoo_instances.delete_one({'name': project_name})
         print "Project %s removed successfully" % project_name
         return
 
@@ -148,48 +192,72 @@ class OdooInstanceActivity:
             fis.close()
         return pid
 
+    def _start_odoo(self, project_name, upgrade=None):
+        port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
+        update = ""
+        if upgrade is not None:
+            update = "--update=%s" % upgrade
+        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s & echo $! > .pid' % (
+        self._startup_file_location(), port_no, update))
+
     def stop(self, project_name):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         print 'Stopping project ', project_name
+
+        if self.server_status(project_name) in ['Stopped', 'Deploying']:
+            raise OAException('Server is not running or Deploying in progress')
+
         os.chdir(project_name)
-        if not self._pid_exists(self._get_pid(self.pid_file)):
-            print 'Server not running'
-            os.chdir('..')
-            return
         self._pid_kill(self.pid_file)
-        print 'Project stopped'
+
+        while True:
+            time.sleep(2)
+            if not self._pid_exists(self._get_pid(self.pid_file)):
+                break
+
         os.chdir('..')
+        self._update_server_status(project_name, 'Stopped')
+        print 'Project stopped'
         return
 
     def start(self, project_name):
-        os.chdir(self.projects_home)
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
+
         print 'Starting project ', project_name
+        os.chdir(self.projects_home)
         os.chdir(project_name)
-        if self._pid_exists(self._get_pid(self.pid_file)):
-            print 'Already server running'
-            return
-        os.system('%s -c openerp-server.conf & echo $! > .pid' % self._startup_file_location())
+
+        if self.server_status(project_name) in ['Running', 'Deploying']:
+            raise OAException('Already server running/Deploying in progress')
+
+        self._start_odoo(project_name)
+
+        os.chdir("..")
+        self._update_server_status(project_name, "Running")
         print 'Project started'
         return
 
     def server_status(self, project_name):
-        os.chdir(self.projects_home)
-        os.chdir(project_name)
-        if self._pid_exists(self._get_pid(self.pid_file)):
-            return 'running'
-        else:
-            return 'stopped'
+        result_set = self.odoo_instances.find_one({'name': project_name}, {'status': 1, '_id': 0})
+        if result_set is None:
+            raise OAException('Project %s is not found' % project_name)
+        return result_set['status']
+
+    def _update_server_status(self, project_name, status):
+        self.odoo_instances.update_one({'name': project_name}, {"$set": {'status': status}})
 
     def restart(self,project_name):
         self.stop(project_name)
-        while True:
-            time.sleep(2)
-            if self.server_status(project_name) == 'stopped':
-                break
+        time.sleep(5)
         self.start(project_name)
 
 
     def upgradesrc(self, project_name):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         print 'Upgrading project source only'
         self.stop(project_name)
@@ -200,11 +268,14 @@ class OdooInstanceActivity:
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf & echo $! > .pid' % self._startup_file_location())
+        self._start_odoo(project_name)
+        os.chdir("..")
         print 'Project upgraded with source and started'
         return
 
     def upgrade(self, project_name, module):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         print 'Upgrading project ', project_name
         self.stop(project_name)
@@ -215,20 +286,26 @@ class OdooInstanceActivity:
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
+
+        self._start_odoo(project_name, upgrade=module)
         print 'Project upgraded and started'
         return
 
     def updatedb(self, project_name, module):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         print 'Updating DB of ', project_name
         self.stop(project_name)
         os.chdir(project_name)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
+        self._start_odoo(project_name, upgrade=module)
+        os.chdir("..")
         print 'Project DB updated'
         return
 
     def switch(self, project_name, branch, module):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         print 'Switching into branch %s for project %s' % (branch, project_name)
         self.stop(project_name)
@@ -240,8 +317,41 @@ class OdooInstanceActivity:
         subprocess.call(['git', 'fetch'])
         subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
         os.chdir(project_path)
-        os.system('%s -c openerp-server.conf --update=%s & echo $! > .pid' % (self._startup_file_location(), module))
+        self._start_odoo(project_name, upgrade=module)
+        os.chdir('..')
         print 'Branch swithced and started'
+        return
+
+    def send_log(self, project_name, to, from_email=None):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
+        os.chdir(self.projects_home)
+        print 'Sending log to %s of poject %s' % (to, project_name)
+        logfile = '%s/log/openerp-server.log' % project_name
+        fp = open(logfile, 'rb')
+        # Create a text/plain message
+        attachment = MIMEText(fp.read())
+        attachment.add_header('Content-Disposition', 'attachment', filename="openerp-server.log.txt")
+        fp.close()
+
+        msg = MIMEMultipart()
+        msg.attach(attachment)
+
+        email_config = self.kutty_config['email']
+        smtp = email_config['smtp']
+
+        from_id = "%s <%s>" % (email_config['name'], email_config['username'])
+        msg['Subject'] = 'Server Log of %s' % project_name
+        msg['From'] = from_id
+        msg['To'] = to
+
+        s = smtplib.SMTP(smtp, port=587)
+        s.ehlo()
+        s.starttls()
+        s.ehlo()
+        s.login(email_config['username'], email_config['password'])
+        s.sendmail(msg['From'], msg['To'], msg.as_string())
+        s.quit()
         return
 
     def _create_odoo_db_user(self,project_name):
@@ -256,3 +366,6 @@ class OdooInstanceActivity:
             print "Not able to create user"
             print e.pgerror
 
+
+class OAException(Exception):
+    pass
