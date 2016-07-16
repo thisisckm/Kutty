@@ -2,6 +2,7 @@ import hashlib
 
 from ..activity import Activity
 
+
 class UserCredential:
     username = None
     password = None
