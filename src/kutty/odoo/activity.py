@@ -80,7 +80,10 @@ class OdooInstanceActivity(Activity):
         return
 
     def _git_clone(self, url, branch, checkout_path):
-        subprocess.call(['git', 'clone', '-b', branch, url, checkout_path])
+        try:
+            subprocess.check_output(['git', 'clone', '-b', branch, '--single-branch', url, checkout_path])
+        except subprocess.CalledProcessError as e:
+            raise e
 
     def _setup_odoo_configuration(self, config):
         # Setup openerp-server.conf file
@@ -124,16 +127,15 @@ class OdooInstanceActivity(Activity):
         if self.has_project_exits(project_name):
             raise OAException('Project already exists')
         os.chdir(self.projects_home)
+
         project_title = config['project']['title']
+        port_no = self._find_unused_port()
         self.odoo_instances.insert_one(
-            {'title': project_title, 'name': project_name, 'status': 'Deploying', 'port_no': self._find_unused_port()})
+            {'title': project_title, 'name': project_name, 'status': 'Deploying', 'port_no': port_no})
         git_url = config['git']['url']
         git_branch = config['git']['branch']
 
         print "Installing project", project_name
-        if os.path.isdir(project_name):
-            raise OAException('Project already exists')
-
         # Download source code
         checkout_path = project_name
         addons_checkout_path = None
@@ -142,12 +144,16 @@ class OdooInstanceActivity(Activity):
             addons_checkout_path = project_name + '/addons'
         os.makedirs(checkout_path)
 
-        self._git_clone(git_url, git_branch, checkout_path)
-        if addons_checkout_path:
-            self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
-
+        try:
+            self._git_clone(git_url, git_branch, checkout_path)
+            if addons_checkout_path:
+                self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
+        except Exception as e:
+            self.odoo_instances.delete_one({'name': project_name})
+            shutil.rmtree(project_name)
+            raise OAException("%s\nError while clone the code from repository" % e.message)
         self._create_odoo_db_user(project_name)
-        port_no = self._setup_odoo_configuration(config)
+        self._setup_odoo_configuration(config)
         self._update_apache_config(project_name, port_no)
 
         self._update_server_status(project_name, 'Stopped')
@@ -207,7 +213,8 @@ class OdooInstanceActivity(Activity):
         print 'Stopping project ', project_name
 
         if self.server_status(project_name) in ['Stopped', 'Deploying']:
-            raise OAException('Server is not running or Deploying in progress')
+            _return_msg = 'Server is not running or Deploying in progress'
+            return False, _return_msg
 
         os.chdir(project_name)
         self._pid_kill(self.pid_file)

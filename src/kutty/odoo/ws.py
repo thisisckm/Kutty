@@ -4,7 +4,6 @@ import thread
 from flask import jsonify
 
 import activity
-from ..usrmng.activity import UserManagementActivity
 from ..ws.main import *
 
 
@@ -50,3 +49,12 @@ class OdooWS(Main):
                 return ex.message, 400
 
         return jsonify(self.activity.get_instance_info(name))
+
+    @route('/odoo/instance/<name>/', methods=["DELETE"])
+    @requires_auth
+    def delete_instance(self, name):
+        try:
+            self.activity.remove(name)
+        except activity.OAException as ex:
+            return ex.message, 400
+        return "done"
