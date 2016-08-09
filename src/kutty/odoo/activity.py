@@ -229,7 +229,7 @@ class OdooInstanceActivity(Activity):
         print 'Project stopped'
         return
 
-    def start(self, project_name):
+    def start(self, project_name, upgrade=None):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
 
@@ -240,7 +240,10 @@ class OdooInstanceActivity(Activity):
         if self.server_status(project_name) in ['Running', 'Deploying']:
             raise OAException('Already server running/Deploying in progress')
 
-        self._start_odoo(project_name)
+        if upgrade is None:
+            self._start_odoo(project_name)
+        else:
+            self._start_odoo(project_name, upgrade)
 
         os.chdir("..")
         self._update_server_status(project_name, "Running")
@@ -258,7 +261,6 @@ class OdooInstanceActivity(Activity):
 
     def restart(self,project_name):
         self.stop(project_name)
-        time.sleep(5)
         self.start(project_name)
 
 
@@ -274,9 +276,8 @@ class OdooInstanceActivity(Activity):
             os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
-        os.chdir(project_path)
-        self._start_odoo(project_name)
-        os.chdir("..")
+        os.chdir(self.projects_home)
+        self.start(project_name)
         print 'Project upgraded with source and started'
         return
 
@@ -292,9 +293,8 @@ class OdooInstanceActivity(Activity):
             os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
-        os.chdir(project_path)
-
-        self._start_odoo(project_name, upgrade=module)
+        os.chdir(self.projects_home)
+        self.start(project_name, upgrade=module)
         print 'Project upgraded and started'
         return
 
@@ -304,9 +304,8 @@ class OdooInstanceActivity(Activity):
         os.chdir(self.projects_home)
         print 'Updating DB of ', project_name
         self.stop(project_name)
-        os.chdir(project_name)
-        self._start_odoo(project_name, upgrade=module)
-        os.chdir("..")
+        self.start(project_name, upgrade=module)
+        os.chdir(self.projects_home)
         print 'Project DB updated'
         return
 
