@@ -89,8 +89,8 @@ class OdooInstanceActivity(Activity):
         # Setup openerp-server.conf file
         project_name = config['project']['name']
 
-        os.chdir(project_name)
-        fos = open('openerp-server.conf', 'w')
+        config_filename = self.projects_home + '/' + project_name + '/openerp-server.conf'
+        fos = open(config_filename, 'w')
         fos.write(
             '[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
         if config['has_addons']:
@@ -126,7 +126,7 @@ class OdooInstanceActivity(Activity):
         project_name = config['project']['name']
         if self.has_project_exits(project_name):
             raise OAException('Project already exists')
-        os.chdir(self.projects_home)
+        # os.chdir(self.projects_home)
 
         project_title = config['project']['title']
         port_no = self._find_unused_port()
@@ -137,11 +137,11 @@ class OdooInstanceActivity(Activity):
 
         print "Installing project", project_name
         # Download source code
-        checkout_path = project_name
+        checkout_path = self.projects_home + '/' + project_name
         addons_checkout_path = None
         if config.get('has_addons', False):
             checkout_path = checkout_path + '/odoo'
-            addons_checkout_path = project_name + '/addons'
+            addons_checkout_path = self.projects_home + '/' + project_name + '/addons'
         os.makedirs(checkout_path)
 
         try:
@@ -224,7 +224,7 @@ class OdooInstanceActivity(Activity):
             if not self._pid_exists(self._get_pid(self.pid_file)):
                 break
 
-        os.chdir('..')
+        os.chdir(self.projects_home)
         self._update_server_status(project_name, 'Stopped')
         print 'Project stopped'
         return
@@ -245,7 +245,7 @@ class OdooInstanceActivity(Activity):
         else:
             self._start_odoo(project_name, upgrade)
 
-        os.chdir("..")
+        os.chdir(self.projects_home)
         self._update_server_status(project_name, "Running")
         print 'Project started'
         return
@@ -276,7 +276,6 @@ class OdooInstanceActivity(Activity):
             os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
-        os.chdir(self.projects_home)
         self.start(project_name)
         print 'Project upgraded with source and started'
         return
@@ -293,7 +292,6 @@ class OdooInstanceActivity(Activity):
             os.chdir('addons')
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'pull'])
-        os.chdir(self.projects_home)
         self.start(project_name, upgrade=module)
         print 'Project upgraded and started'
         return
@@ -301,11 +299,9 @@ class OdooInstanceActivity(Activity):
     def updatedb(self, project_name, module):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
-        os.chdir(self.projects_home)
         print 'Updating DB of ', project_name
         self.stop(project_name)
         self.start(project_name, upgrade=module)
-        os.chdir(self.projects_home)
         print 'Project DB updated'
         return
 
@@ -322,9 +318,7 @@ class OdooInstanceActivity(Activity):
         subprocess.call(['git', 'reset', '--hard'])
         subprocess.call(['git', 'fetch'])
         subprocess.call(['git', 'checkout', branch, '&&', 'git', 'pull'])
-        os.chdir(project_path)
-        self._start_odoo(project_name, upgrade=module)
-        os.chdir('..')
+        self.start(project_name, upgrade=module)
         print 'Branch swithced and started'
         return
 
