@@ -1,6 +1,7 @@
 import ConfigParser
 import thread
 
+import util
 from flask import jsonify
 
 import activity
@@ -10,7 +11,9 @@ from ..ws.main import *
 class OdooWS(Main):
     def __init__(self):
         kutty_config = ConfigParser.ConfigParser()
-        kutty_config.read("kutty.config")
+        cnf_filename = util.configuration.find_config_file()
+        print cnf_filename
+        kutty_config.read(cnf_filename)
         kutty_config = kutty_config._sections
         self.activity = activity.OdooInstanceActivity(kutty_config)
 
