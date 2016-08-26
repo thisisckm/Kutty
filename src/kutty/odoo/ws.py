@@ -36,18 +36,27 @@ class OdooWS(Main):
     def get_instance_info(self, name):
         if request.method == 'PUT':
             action = request.json.get('action', None)
-            if action is None or action not in ["stop", "start", "sendlog"]:
-                return 'Invalid action command', 400
             try:
                 if action == 'stop':
                     self.activity.stop(name)
                 elif action == 'start':
                     self.activity.start(name)
+                elif action == 'restart':
+                    self.activity.restart(name)
                 elif action == 'sendlog':
                     auth = request.authorization
                     usrmng_activity = UserManagementActivity()
                     email = usrmng_activity.get_user(auth.username)['email']
                     self.activity.send_log(name, email)
+                elif action == 'upgrade':
+                    self.activity.upgrade(name)
+                elif action == 'upgradesrc':
+                    self.activity.upgradesrc(name)
+                elif action == 'updatedb':
+                    self.activity.updatedb(name)
+                else:
+                    return 'Invalid action command', 400
+
             except activity.OAException as ex:
                 return ex.message, 400
 
