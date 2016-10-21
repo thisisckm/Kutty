@@ -21,7 +21,11 @@ class OdooInstanceActivity(Activity):
         self.pid_file = '.pid'
 
         if not os.path.exists(self.projects_home):
-            os.mkdir(self.projects_home)
+            try:
+                os.mkdir(self.projects_home)
+            except OSError:
+                print "No such directory"
+                exit(1)
 
         self._first_deploy()
 
@@ -280,7 +284,7 @@ class OdooInstanceActivity(Activity):
         print 'Project upgraded with source and started'
         return
 
-    def upgrade(self, project_name, module):
+    def upgrade(self, project_name, module="all"):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
@@ -296,7 +300,7 @@ class OdooInstanceActivity(Activity):
         print 'Project upgraded and started'
         return
 
-    def updatedb(self, project_name, module):
+    def updatedb(self, project_name, module="all"):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
         print 'Updating DB of ', project_name
@@ -305,7 +309,7 @@ class OdooInstanceActivity(Activity):
         print 'Project DB updated'
         return
 
-    def switch(self, project_name, branch, module):
+    def switch(self, project_name, branch, module="all"):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
