@@ -17,7 +17,7 @@ class OdooInstanceActivity(Activity):
 
     def __init__(self, kutty_config):
         self.kutty_config = kutty_config
-        self.projects_home = kutty_config['default']['project_home']
+        self.projects_home = kutty_config['DEFAULT']['project_home']
         self.pid_file = '.pid'
 
         if not os.path.exists(self.projects_home):
