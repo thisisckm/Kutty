@@ -19,7 +19,8 @@ project_home = raw_input('Project Home: ').strip()
 if project_home:
     if not os.path.isdir(project_home):
         os.mkdir(project_home)
-    config.set(ConfigParser.DEFAULTSECT, "project_home", project_home)
+    config.add_section('general')
+    config.set('general', "project_home", project_home)
 
 # apache configuration
 apache_sa_path = '/etc/apache2/sites-available'
@@ -86,7 +87,12 @@ with open('%s/kutty.config' % config_home_path, 'wb') as configfile:
     print ">Configuration Setup Successfully<"
 
 # copying certificate and key
+cert_path = '%s/cert' % config_home_path
+if os.path.isdir(cert_path):
+    shutil.rmtree(cert_path)
 shutil.copytree('setup/cert', '%s/cert' % config_home_path)
+log_path = '%s/log' % config_home_path
+os.mkdir(log_path)
 print ">Server key and certificate files installed Successfully<"
 print '\nPlease setup sudo user as nopassword sudo user'
 print 'And setup postgresql user for kutty'

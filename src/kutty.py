@@ -82,6 +82,9 @@ def main():
     parser_create.set_defaults(which='start')
     parser_create.add_argument('project', help='Project server to be Start')
 
+    parser_create = subparsers.add_parser('startall')
+    parser_create.set_defaults(which='startall')
+
     parser_create = subparsers.add_parser('restart')
     parser_create.set_defaults(which='restart')
     parser_create.add_argument('project', help='Project server to be restart')
@@ -181,6 +184,16 @@ def main():
                 if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
                     project_name = args['project']
                     odooInstanceActivity.start(project_name)
+            except usermng_activity.UMException as ex:
+                print ex.message
+            except odoo_activity.OAException as ex:
+                print ex.message
+
+        elif args['which'] == 'startall':
+            usr, pwd = get_user_credential()
+            try:
+                if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                    odooInstanceActivity.start_all()
             except usermng_activity.UMException as ex:
                 print ex.message
             except odoo_activity.OAException as ex:

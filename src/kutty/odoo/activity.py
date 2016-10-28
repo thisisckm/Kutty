@@ -17,7 +17,7 @@ class OdooInstanceActivity(Activity):
 
     def __init__(self, kutty_config):
         self.kutty_config = kutty_config
-        self.projects_home = kutty_config['DEFAULT']['project_home']
+        self.projects_home = kutty_config['general']['project_home']
         self.pid_file = '.pid'
 
         if not os.path.exists(self.projects_home):
@@ -253,6 +253,9 @@ class OdooInstanceActivity(Activity):
         self._update_server_status(project_name, "Running")
         print 'Project started'
         return
+
+    def start_all(self, upgrade=None):
+        pass
 
     def server_status(self, project_name):
         result_set = self.odoo_instances.find_one({'name': project_name}, {'status': 1, '_id': 0})

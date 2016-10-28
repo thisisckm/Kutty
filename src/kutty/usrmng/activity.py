@@ -60,6 +60,24 @@ class UserManagementActivity(Activity):
                 raise UMException('Username/password is mismatch')
         return True
 
+    def updateuser(self, username, name=None, email=None, password=None, image=None):
+        if not self._has_user_exits(username):
+            raise UMException('Username - %s is not exits' % username)
+        else:
+            values = {}
+            if password is not None:
+                md5_password = hashlib.md5(password).hexdigest()
+                values['password'] = md5_password
+            if name is not None:
+                values['name'] = name
+            if email is not None:
+                values['email'] = email
+            if image is not None:
+                values['image'] = image
+
+            if len(values.keys()) != 0:
+                self.users.update_one({'user': username}, {"$set": values}, upsert=True)
+
     def deluser(self, username):
         self.users.remove({'user': username})
 
