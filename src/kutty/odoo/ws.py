@@ -1,10 +1,10 @@
 import ConfigParser
 import thread
 
-import util
 from flask import jsonify
 
 import activity
+import util
 from ..ws.main import *
 
 
@@ -17,7 +17,7 @@ class OdooWS(Main):
         kutty_config = kutty_config._sections
         self.activity = activity.OdooInstanceActivity(kutty_config)
 
-    @route('/odoo/instance/', methods=["GET", "POST"])
+    @route('/odoo/instance/', methods=["GET", "POST", "PUT"])
     @requires_auth
     def instance(self):
         if request.method == 'POST':
@@ -27,6 +27,20 @@ class OdooWS(Main):
                     return 'Project %s already exits' % project_name, 400
                 thread.start_new_thread(self.activity.install, (request.json,))
                 return "done"
+            else:
+                return 'Only json Content-type is allowed', 400
+        elif request.method == 'PUT':
+            if request.headers.get('Content-Type') == 'application/json':
+                action = request.json.get('action', None)
+                try:
+                    if action == 'stopall':
+                        self.activity.stop_all()
+                    elif action == 'startall':
+                        self.activity.start_all()
+                    else:
+                        return 'Invalid action command', 400
+                except activity.OAException as ex:
+                    return ex.message, 400
             else:
                 return 'Only json Content-type is allowed', 400
         return jsonify(self.activity.list_instance())

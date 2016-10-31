@@ -1,6 +1,5 @@
 import os
 import os.path
-import psycopg2
 import shutil
 import signal
 import smtplib
@@ -10,10 +9,16 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import psycopg2
+
 from ..activity import Activity
 
 
 class OdooInstanceActivity(Activity):
+    def _check_instances(self):
+        result_set = self.odoo_instances.find({}, {'_id': 0}).sort("port_no", 1)
+        for elm in result_set:
+            self._refresh_server_status(elm['name'])
 
     def __init__(self, kutty_config):
         self.kutty_config = kutty_config
@@ -28,6 +33,7 @@ class OdooInstanceActivity(Activity):
                 exit(1)
 
         self._first_deploy()
+        self._check_instances()
 
 
     def _update_apache_config(self, server_name, portno):
@@ -167,6 +173,7 @@ class OdooInstanceActivity(Activity):
     def list_instance(self):
         ouput = []
         for elm in self.odoo_instances.find({}, {'_id': 0}):
+            self._refresh_server_status(elm['name'])
             ouput.append(elm)
 
         return ouput
@@ -233,6 +240,11 @@ class OdooInstanceActivity(Activity):
         print 'Project stopped'
         return
 
+    def stop_all(self):
+        result_set = self.odoo_instances.find({}, {'_id': 0}).sort("port_no", 1)
+        for elm in result_set:
+            self.stop(elm['name'])
+
     def start(self, project_name, upgrade=None):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
@@ -255,13 +267,23 @@ class OdooInstanceActivity(Activity):
         return
 
     def start_all(self, upgrade=None):
-        pass
+        result_set = self.odoo_instances.find({}, {'_id': 0}).sort("port_no", 1)
+        for elm in result_set:
+            self.start(elm['name'], upgrade)
 
     def server_status(self, project_name):
+        self._refresh_server_status(project_name)
         result_set = self.odoo_instances.find_one({'name': project_name}, {'status': 1, '_id': 0})
         if result_set is None:
             raise OAException('Project %s is not found' % project_name)
         return result_set['status']
+
+    def _refresh_server_status(self, project_name):
+        pid_file = self.projects_home + '/' + project_name + '/.pid'
+        if self._pid_exists(self._get_pid(pid_file)):
+            self._update_server_status(project_name, "Running")
+        else:
+            self._update_server_status(project_name, "Stopped")
 
     def _update_server_status(self, project_name, status):
         self.odoo_instances.update_one({'name': project_name}, {"$set": {'status': status}})
