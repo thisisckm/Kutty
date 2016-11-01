@@ -16,7 +16,7 @@ from ..activity import Activity
 
 class OdooInstanceActivity(Activity):
     def _check_instances(self):
-        result_set = self.odoo_instances.find({}, {'_id': 0}).sort("port_no", 1)
+        result_set = self.odoo_instances.find({"status": "Running"}, {'_id': 0}).sort("port_no", 1)
         for elm in result_set:
             self._refresh_server_status(elm['name'])
 
@@ -173,7 +173,8 @@ class OdooInstanceActivity(Activity):
     def list_instance(self):
         ouput = []
         for elm in self.odoo_instances.find({}, {'_id': 0}):
-            self._refresh_server_status(elm['name'])
+            if elm["status"] == "Running":
+                self._refresh_server_status(elm['name'])
             ouput.append(elm)
 
         return ouput
