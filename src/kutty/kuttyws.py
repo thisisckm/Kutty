@@ -23,7 +23,7 @@ class KuttyWS(Daemon):
         key_file, cert_file = configuration.find_cert_files()
         context.use_privatekey_file(key_file)
         context.use_certificate_file(cert_file)
-        app.run(host='0.0.0.0', port=9090, debug=False, ssl_context=context)
+        app.run(host='0.0.0.0', port=9090, processes=10, ssl_context=context)
 
     def start_ws_server(self):
         self.start()

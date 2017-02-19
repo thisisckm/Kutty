@@ -6,8 +6,9 @@ import smtplib
 import subprocess
 import tempfile
 import time
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import psycopg2
 
@@ -356,11 +357,13 @@ class OdooInstanceActivity(Activity):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
-        print 'Sending log to %s of poject %s' % (to, project_name)
+        print '[Kutty] Sending log to %s of poject %s' % (to, project_name)
         logfile = '%s/log/openerp-server.log' % project_name
         fp = open(logfile, 'rb')
         # Create a text/plain message
-        attachment = MIMEText(fp.read())
+        attachment = MIMEBase('application', 'octet-stream')
+        attachment.set_payload((fp).read())
+        encoders.encode_base64(attachment)
         attachment.add_header('Content-Disposition', 'attachment', filename="openerp-server.log.txt")
         fp.close()
 
