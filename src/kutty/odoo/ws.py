@@ -1,10 +1,10 @@
 import ConfigParser
 import thread
 
+import util
 from flask import jsonify
 
 import activity
-import util
 from ..ws.main import *
 
 
@@ -52,9 +52,9 @@ class OdooWS(Main):
             action = request.json.get('action', None)
             try:
                 if action == 'stop':
-                    self.activity.stop(name)
+                    thread.start_new_thread(self.activity.stop, (name,))
                 elif action == 'start':
-                    self.activity.start(name)
+                    thread.start_new_thread(self.activity.start, (name,))
                 elif action == 'restart':
                     self.activity.restart(name)
                 elif action == 'sendlog':

@@ -225,10 +225,11 @@ class OdooInstanceActivity(Activity):
         os.chdir(self.projects_home)
         print 'Stopping project ', project_name
 
-        if self.server_status(project_name) in ['Stopped', 'Deploying']:
+        if self.server_status(project_name) in ['Stopped', 'Deploying', 'Stopping']:
             _return_msg = 'Server is not running or Deploying in progress'
             return False, _return_msg
 
+        self._update_server_status(project_name, 'Stopping')
         os.chdir(project_name)
         pid = self._get_pid(self.pid_file)
         self._pid_kill(pid)
@@ -264,8 +265,10 @@ class OdooInstanceActivity(Activity):
         os.chdir(self.projects_home)
         os.chdir(project_name)
 
-        if self.server_status(project_name) in ['Running', 'Deploying']:
+        if self.server_status(project_name) in ['Running', 'Deploying', 'Starting']:
             raise OAException('Already server running/Deploying in progress')
+
+        self._update_server_status(project_name, "Starting")
 
         if upgrade is None:
             self._start_odoo(project_name)
