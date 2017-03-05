@@ -1,7 +1,6 @@
 import os
 import os.path
 import shutil
-import signal
 import smtplib
 import subprocess
 import tempfile
@@ -10,6 +9,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 
+import psutil
 import psycopg2
 
 from ..activity import Activity
@@ -194,14 +194,14 @@ class OdooInstanceActivity(Activity):
         print "Project %s removed successfully" % project_name
         return
 
-    def _pid_kill(self, pid_file):
-        pid = self._get_pid(pid_file)
+    def _pid_kill(self, pid):
         if self._pid_exists(pid):
-            os.kill(int(pid), signal.SIGINT)
+            ps = psutil.Process(pid)
+            ps.terminate()
         return
 
     def _pid_exists(self, pid):
-        return os.path.exists('/proc/' + pid)
+        return psutil.pid_exists(pid)
 
     def _get_pid(self, pid_file):
         pid = '0'
@@ -209,7 +209,7 @@ class OdooInstanceActivity(Activity):
             fis = open(pid_file, 'r')
             pid = fis.readline().rstrip()
             fis.close()
-        return pid
+        return int(pid)
 
     def _start_odoo(self, project_name, upgrade=None):
         port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
@@ -230,12 +230,21 @@ class OdooInstanceActivity(Activity):
             return False, _return_msg
 
         os.chdir(project_name)
-        self._pid_kill(self.pid_file)
+        pid = self._get_pid(self.pid_file)
+        self._pid_kill(pid)
 
-        while True:
+        clean = False
+        for count in range(1, 90):
             time.sleep(2)
-            if not self._pid_exists(self._get_pid(self.pid_file)):
+            print "Waiting for shutdown[%s]" % (count)
+            if not self._pid_exists(pid):
+                clean = True
                 break
+
+        if not clean:
+            print "No clean shutdown"
+            ps = psutil.Process(pid)
+            ps.kill()
 
         os.chdir(self.projects_home)
         self._update_server_status(project_name, 'Stopped')
