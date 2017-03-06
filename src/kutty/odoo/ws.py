@@ -55,6 +55,8 @@ class OdooWS(Main):
                     thread.start_new_thread(self.activity.stop, (name,))
                 elif action == 'start':
                     thread.start_new_thread(self.activity.start, (name,))
+                elif action == 'kill':
+                    thread.start_new_thread(self.activity.kill, (name,))
                 elif action == 'restart':
                     self.activity.restart(name)
                 elif action == 'sendlog':

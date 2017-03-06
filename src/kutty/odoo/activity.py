@@ -252,6 +252,31 @@ class OdooInstanceActivity(Activity):
         print 'Project stopped'
         return
 
+    def kill(self, project_name):
+        if not self.has_project_exits(project_name):
+            raise OAException("Project %s not exits" % project_name)
+        os.chdir(self.projects_home)
+        print 'Stopping project ', project_name
+
+        server_status = self.server_status(project_name)
+
+        if server_status in ['Stopped', 'Deploying']:
+            _return_msg = 'Server is not running or Deploying in progress'
+            return False, _return_msg
+
+        if server_status in ['Starting', 'Started']:
+            _return_msg = 'Server is running'
+            return False, _return_msg
+
+        os.chdir(project_name)
+        pid = self._get_pid(self.pid_file)
+        ps = psutil.Process(pid)
+        ps.kill()
+        os.chdir(self.projects_home)
+        self._update_server_status(project_name, 'Stopped')
+        print 'Project stopped'
+        return
+
     def stop_all(self):
         result_set = self.odoo_instances.find({}, {'_id': 0}).sort("port_no", 1)
         for elm in result_set:
