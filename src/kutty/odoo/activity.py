@@ -71,9 +71,19 @@ class OdooInstanceActivity(Activity):
 
     def _startup_file_location(self):
         if os.path.isdir('odoo'):
-            return 'odoo/openerp-server'
-        if os.path.isfile('openerp-server'):
-            return './openerp-server'
+            if os.path.isfile('odoo/openerp-server'):
+                return 'odoo/openerp-server'
+            elif os.path.isfile('odoo/odoo.py'):
+                return 'odoo/odoo.py'
+            elif os.path.isfile('odoo/odoo-bin'):
+                return 'odoo/odoo-bin'
+        else:
+            if os.path.isfile('openerp-server'):
+                return './openerp-server'
+            elif os.path.isfile('odoo.py'):
+                return './odoo.py'
+            elif os.path.isfile('odoo-bin'):
+                return './odoo-bin'
         return 'openerp7/openerp-server'
 
     def system_init(self):
