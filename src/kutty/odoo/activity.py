@@ -219,6 +219,8 @@ class OdooInstanceActivity(Activity):
             fis = open(pid_file, 'r')
             pid = fis.readline().rstrip()
             fis.close()
+        else:
+            pid = '123456'
         return int(pid)
 
     def _start_odoo(self, project_name, upgrade=None):
