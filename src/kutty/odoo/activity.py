@@ -228,7 +228,7 @@ class OdooInstanceActivity(Activity):
         update = ""
         if upgrade is not None:
             update = "--update=%s" % upgrade
-        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s & echo $! > .pid' % (
+        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s >/dev/null & echo $! > .pid' % (
         self._startup_file_location(), port_no, update))
 
     def stop(self, project_name):
