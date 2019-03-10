@@ -204,14 +204,34 @@ class OdooInstanceActivity(Activity):
         print "Project %s removed successfully" % project_name
         return
 
-    def _pid_kill(self, pid):
-        if self._pid_exists(pid):
+    def _pid_kill(self, pid, port_no):
+        if self._pid_exists(pid, port_no):
             ps = psutil.Process(pid)
-            ps.terminate()
-        return
+            try:
+                ps.terminate()
+            except psutil.AccessDenied:
+                return False
+        return True
 
-    def _pid_exists(self, pid):
-        return psutil.pid_exists(pid)
+    def _pid_force_kill(self, pid, port_no):
+        if self._pid_exists(pid, port_no):
+            ps = psutil.Process(pid)
+            try:
+                ps.kill()
+            except psutil.AccessDenied:
+                return False
+        return True
+
+    def _pid_exists(self, pid, port_no):
+        if psutil.pid_exists(pid):
+            try:
+                ps = psutil.Process(pid)
+                cont = ps.connections()[0]
+                if cont.laddr and str(cont.laddr[1]) == port_no:
+                    return True
+            except psutil.AccessDenied:
+                return False
+        return False
 
     def _get_pid(self, pid_file):
         pid = '0'
@@ -234,6 +254,7 @@ class OdooInstanceActivity(Activity):
     def stop(self, project_name):
         if not self.has_project_exits(project_name):
             raise OAException("Project %s not exits" % project_name)
+        port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
         os.chdir(self.projects_home)
         print 'Stopping project ', project_name
 
@@ -244,20 +265,21 @@ class OdooInstanceActivity(Activity):
         self._update_server_status(project_name, 'Stopping')
         os.chdir(project_name)
         pid = self._get_pid(self.pid_file)
-        self._pid_kill(pid)
+        if not self._pid_kill(pid, port_no):
+            print 'Not able to kill the process. Still continue.'
 
-        clean = False
-        for count in range(1, 90):
-            time.sleep(2)
-            print "Waiting for shutdown[%s]" % (count)
-            if not self._pid_exists(pid):
-                clean = True
-                break
+        if self._pid_exists(pid, port_no):
+            clean = False
+            for count in range(1, 90):
+                time.sleep(2)
+                print "Waiting for shutdown[%s]" % (count)
+                if not self._pid_exists(pid, port_no):
+                    clean = True
+                    break
 
-        if not clean:
-            print "No clean shutdown"
-            ps = psutil.Process(pid)
-            ps.kill()
+            if not clean:
+                print "No clean shutdown"
+                self._pid_force_kill(pid, port_no)
 
         os.chdir(self.projects_home)
         self._update_server_status(project_name, 'Stopped')
@@ -331,7 +353,9 @@ class OdooInstanceActivity(Activity):
 
     def _refresh_server_status(self, project_name):
         pid_file = self.projects_home + '/' + project_name + '/.pid'
-        if self._pid_exists(self._get_pid(pid_file)):
+
+        port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
+        if self._pid_exists(self._get_pid(pid_file), port_no):
             self._update_server_status(project_name, "Running")
         else:
             self._update_server_status(project_name, "Stopped")
