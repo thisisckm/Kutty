@@ -22,6 +22,7 @@ class OdooInstanceActivity(Activity):
             self._refresh_server_status(elm['name'])
 
     def __init__(self, kutty_config):
+        Activity.__init__(self)
         self.kutty_config = kutty_config
         self.projects_home = kutty_config['general']['project_home']
         self.pid_file = '.pid'
@@ -36,7 +37,6 @@ class OdooInstanceActivity(Activity):
         self._first_deploy()
         self._check_instances()
 
-
     def _update_apache_config(self, server_name, portno):
         template = "<VirtualHost *:80>\n"
         template = template + "ServerName %s\n"
@@ -46,27 +46,27 @@ class OdooInstanceActivity(Activity):
 
         output = template % (server_name, portno, portno)
         temp_file = tempfile.gettempdir() + os.path.sep + server_name
-        conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
-        link_file = "%s%s%s.conf" %(self.kutty_config['apache']['se_path'], os.path.sep, server_name)
+        conf_file = "%s%s%s.conf" % (self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
+        link_file = "%s%s%s.conf" % (self.kutty_config['apache']['se_path'], os.path.sep, server_name)
 
         ostream = open(temp_file, 'w')
         ostream.write(output)
         ostream.flush()
         ostream.close()
 
-        command = ['sudo', 'cp', temp_file,conf_file]
+        command = ['sudo', 'cp', temp_file, conf_file]
         subprocess.Popen(command, stdin=subprocess.PIPE)
         command = ['sudo', 'ln', '-s', conf_file, link_file]
         subprocess.Popen(command, stdin=subprocess.PIPE)
-        command = ['sudo','apachectl', '-k', 'graceful']
+        command = ['sudo', 'apachectl', '-k', 'graceful']
         subprocess.Popen(command, stdin=subprocess.PIPE)
 
-    def _remove_apache_config(self,server_name):
-        conf_file = "%s%s%s.conf" %(self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
-        link_file = "%s%s%s.conf" %(self.kutty_config['apache']['se_path'], os.path.sep, server_name)
+    def _remove_apache_config(self, server_name):
+        conf_file = "%s%s%s.conf" % (self.kutty_config['apache']['sa_path'], os.path.sep, server_name)
+        link_file = "%s%s%s.conf" % (self.kutty_config['apache']['se_path'], os.path.sep, server_name)
         command = ['sudo', 'rm', conf_file, link_file]
         subprocess.Popen(command, stdin=subprocess.PIPE)
-        command = ['sudo','apachectl', '-k', 'graceful']
+        command = ['sudo', 'apachectl', '-k', 'graceful']
         subprocess.Popen(command, stdin=subprocess.PIPE)
 
     def _startup_file_location(self):
@@ -118,7 +118,8 @@ class OdooInstanceActivity(Activity):
             addons_path = self.projects_home + '/' + project_name + '/odoo/addons'
             addons_path = addons_path + ',' + self.projects_home + '/' + project_name + '/addons'
             fos.write('addons_path = %s\n' % (addons_path))
-        fos.write('db_host = %s\ndb_port = %s\n' % (self.kutty_config['odoo_db']['host'],self.kutty_config['odoo_db']['port']))
+        fos.write('db_host = %s\ndb_port = %s\n' % (
+        self.kutty_config['odoo_db']['host'], self.kutty_config['odoo_db']['port']))
         fos.write('db_user = %s\n' % project_name)
         fos.write('db_password = redhat19\n')
         fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
@@ -245,14 +246,13 @@ class OdooInstanceActivity(Activity):
         if upgrade is not None:
             update = "--update=%s" % upgrade
         os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s >/dev/null & echo $! > %s' % (
-        self._startup_file_location(), port_no, update, self.pid_file))
+            self._startup_file_location(), port_no, update, self.pid_file))
         if os.path.isfile(self.pid_file):
             fis = open(self.pid_file, 'r')
             pid = fis.readline().rstrip()
             fis.close()
             os.remove(self.pid_file)
             self.odoo_instances.update_one({'name': project_name}, {'$set': {'pid': pid}})
-
 
     def stop(self, project_name):
         if not self.has_project_exits(project_name):
@@ -365,10 +365,9 @@ class OdooInstanceActivity(Activity):
     def _update_server_status(self, project_name, status):
         self.odoo_instances.update_one({'name': project_name}, {"$set": {'status': status}})
 
-    def restart(self,project_name):
+    def restart(self, project_name):
         self.stop(project_name)
         self.start(project_name)
-
 
     def upgradesrc(self, project_name):
         if not self.has_project_exits(project_name):
@@ -462,10 +461,13 @@ class OdooInstanceActivity(Activity):
         s.quit()
         return
 
-    def _create_odoo_db_user(self,project_name):
+    def _create_odoo_db_user(self, project_name):
         # # Setup db username
         try:
-            conn = psycopg2.connect(database="template1", user=self.kutty_config['odoo_db']['username'], password=self.kutty_config['odoo_db']['password'], host=self.kutty_config['odoo_db']['host'], port=self.kutty_config['odoo_db']['port'])
+            conn = psycopg2.connect(database="template1", user=self.kutty_config['odoo_db']['username'],
+                                    password=self.kutty_config['odoo_db']['password'],
+                                    host=self.kutty_config['odoo_db']['host'],
+                                    port=self.kutty_config['odoo_db']['port'])
             cur = conn.cursor()
             cur.execute('CREATE USER "%s" WITH CREATEDB NOCREATEUSER PASSWORD \'%s\'' % (project_name, "redhat19"))
             conn.commit()
