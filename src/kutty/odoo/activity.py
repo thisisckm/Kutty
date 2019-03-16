@@ -226,20 +226,16 @@ class OdooInstanceActivity(Activity):
         if psutil.pid_exists(pid):
             try:
                 ps = psutil.Process(pid)
-                cont = ps.connections()[0]
-                if cont.laddr and str(cont.laddr[1]) == port_no:
+                cons = ps.connections()
+                if cons and cons[0].laddr and str(cons[0].laddr[1]) == port_no:
                     return True
             except psutil.AccessDenied:
                 return False
         return False
 
-    def _get_pid(self, pid_file):
-        pid = '0'
-        if os.path.isfile(pid_file):
-            fis = open(pid_file, 'r')
-            pid = fis.readline().rstrip()
-            fis.close()
-        else:
+    def _get_pid(self, project_name):
+        pid = self.odoo_instances.find_one({'name': project_name}, {'pid': 1, '_id': 0}).get('pid', False)
+        if not pid:
             pid = '123456'
         return int(pid)
 
@@ -248,8 +244,15 @@ class OdooInstanceActivity(Activity):
         update = ""
         if upgrade is not None:
             update = "--update=%s" % upgrade
-        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s >/dev/null & echo $! > .pid' % (
-        self._startup_file_location(), port_no, update))
+        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s >/dev/null & echo $! > %s' % (
+        self._startup_file_location(), port_no, update, self.pid_file))
+        if os.path.isfile(self.pid_file):
+            fis = open(self.pid_file, 'r')
+            pid = fis.readline().rstrip()
+            fis.close()
+            os.remove(self.pid_file)
+            self.odoo_instances.update_one({'name': project_name}, {'$set': {'pid': pid}})
+
 
     def stop(self, project_name):
         if not self.has_project_exits(project_name):
@@ -264,7 +267,7 @@ class OdooInstanceActivity(Activity):
 
         self._update_server_status(project_name, 'Stopping')
         os.chdir(project_name)
-        pid = self._get_pid(self.pid_file)
+        pid = self._get_pid(project_name)
         if not self._pid_kill(pid, port_no):
             print 'Not able to kill the process. Still continue.'
 
@@ -303,7 +306,7 @@ class OdooInstanceActivity(Activity):
             return False, _return_msg
 
         os.chdir(project_name)
-        pid = self._get_pid(self.pid_file)
+        pid = self._get_pid(project_name)
         ps = psutil.Process(pid)
         ps.kill()
         os.chdir(self.projects_home)
@@ -352,10 +355,9 @@ class OdooInstanceActivity(Activity):
         return result_set['status']
 
     def _refresh_server_status(self, project_name):
-        pid_file = self.projects_home + '/' + project_name + '/.pid'
 
         port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
-        if self._pid_exists(self._get_pid(pid_file), port_no):
+        if self._pid_exists(self._get_pid(project_name), port_no):
             self._update_server_status(project_name, "Running")
         else:
             self._update_server_status(project_name, "Stopped")
