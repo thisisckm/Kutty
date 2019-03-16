@@ -14,6 +14,7 @@ class UserCredential:
 
 class UserManagementActivity(Activity):
     def __init__(self):
+        Activity.__init__(self)
         self._first_deploy()
 
     def _has_user_exits(self, username):
@@ -36,7 +37,6 @@ class UserManagementActivity(Activity):
         returnValue = []
         for elm in self.users.find({}, {'_id': 0, 'password': 0, 'image': 0}):
             returnValue.append(elm)
-        print returnValue
         return returnValue
 
     def get_user(self, user):

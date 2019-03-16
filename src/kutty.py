@@ -4,6 +4,7 @@ import argparse
 import getpass
 import os
 import os.path
+from tabulate import tabulate
 
 from kutty.kuttyws import KuttyWS
 from kutty.odoo import activity as odoo_activity
@@ -176,8 +177,11 @@ def main():
             usr, pwd = get_user_credential()
             try:
                 if userManagementActivity.check_authentication(usermng_activity.UserCredential(usr, pwd)):
+                    rows = []
                     for elm in odooInstanceActivity.list_instance():
-                        print elm
+                        rows.append([elm['title'], elm['name'], elm['port_no'], elm['status']])
+                    print tabulate(rows, headers=['Title', 'Name', 'Port No', 'Status'], tablefmt='orgtbl')
+
             except usermng_activity.UMException as ex:
                 print ex.message
 
@@ -344,10 +348,10 @@ def main():
             user, pwd = get_user_credential()
             try:
                 if userManagementActivity.check_authentication(usermng_activity.UserCredential(user, pwd)):
-                    print 'Username\t\tType\t\tStatus'
-                    print '----------------------------------------------'
+                    rows = []
                     for elm in userManagementActivity.listuser():
-                        print '%s\t\t\t%s\t\t%s' % (elm['user'].strip(), elm['type'], elm['active'])
+                        rows.append([elm['user'].strip(), elm['type'], 'Active' if elm['active'] else 'Inactive'])
+                    print tabulate(rows, headers=['Username', 'Type', 'Status'], tablefmt='orgtbl')
             except usermng_activity.UMException as ex:
                 print ex.message
 
