@@ -4,6 +4,7 @@ from flask import request, Response
 from flask_classy import FlaskView, route
 
 from ..usrmng.activity import UserManagementActivity, UserCredential, UMException
+from ..system.activity import SystemActivity
 
 
 def check_auth(username, password):
@@ -38,6 +39,12 @@ class Main(FlaskView):
     route_base = '/api/'
 
     @route('/')
-    @requires_auth
     def index(self):
-        return "Hello Kutty"
+        return "Hello,\n I am Kutty"
+
+    @route('/healthcheck', methods=['GET'])
+    def health_check(self):
+        sa = SystemActivity()
+        if sa.healtcheck():
+            return "Kutty's health is 100% ok", 200
+        return "Kutty's health is worrying", 418
