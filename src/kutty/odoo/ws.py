@@ -12,7 +12,6 @@ class OdooWS(Main):
     def __init__(self):
         kutty_config = ConfigParser.ConfigParser()
         cnf_filename = util.configuration.find_config_file()
-        print cnf_filename
         kutty_config.read(cnf_filename)
         kutty_config = kutty_config._sections
         self.activity = activity.OdooInstanceActivity(kutty_config)
@@ -25,6 +24,9 @@ class OdooWS(Main):
                 project_name = request.json['project']['name']
                 if self.activity.has_project_exits(project_name):
                     return 'Project %s already exits' % project_name, 400
+                validate_config_result = self.activity.validate_config(request.json)
+                if validate_config_result:
+                    return validate_config_result, 400
                 thread.start_new_thread(self.activity.install, (request.json,))
                 return "done"
             else:

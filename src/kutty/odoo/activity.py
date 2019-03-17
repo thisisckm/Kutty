@@ -26,6 +26,8 @@ class OdooInstanceActivity(Activity):
         self.kutty_config = kutty_config
         self.projects_home = kutty_config['general']['project_home']
         self.pid_file = '.pid'
+        user_home = os.path.expanduser('~')
+        self.dot_kutty_path = '%s/.kutty' % user_home
 
         if not os.path.exists(self.projects_home):
             try:
@@ -113,8 +115,8 @@ class OdooInstanceActivity(Activity):
         config_filename = self.projects_home + '/' + project_name + '/openerp-server.conf'
         fos = open(config_filename, 'w')
         fos.write(
-            '[options]\n; This is the password that allows database operations:\n; admin_passwd = %s\n' % project_name)
-        if config['has_addons']:
+            '[options]\n; This is the password that allows database operations:\nadmin_passwd = %s\n' % project_name)
+        if config['project'].get('has_addons', False):
             addons_path = self.projects_home + '/' + project_name + '/odoo/addons'
             addons_path = addons_path + ',' + self.projects_home + '/' + project_name + '/addons'
             fos.write('addons_path = %s\n' % (addons_path))
@@ -122,7 +124,6 @@ class OdooInstanceActivity(Activity):
         self.kutty_config['odoo_db']['host'], self.kutty_config['odoo_db']['port']))
         fos.write('db_user = %s\n' % project_name)
         fos.write('db_password = redhat19\n')
-        fos.write('logfile = log/openerp-server.log\nproxy_mode = True\n')
         fos.close()
         return
 
@@ -144,7 +145,21 @@ class OdooInstanceActivity(Activity):
 
         return port_no
 
+    def validate_config(self, config):
+        if not config.get('project', False):
+            return "project notation is not found"
+        if not config['project'].get('sca', False):
+            return "project/sca notation is not found"
+        elif config['project']['sca'] not in ['download', 'link']:
+            return "notation project/sca, don't have valid values download or link"
+        return False
+
     def install(self, config):
+
+        validate_result = self.validate_config(config)
+        if validate_result:
+            raise OAException(validate_result)
+
         project_name = config['project']['name']
         if self.has_project_exits(project_name):
             raise OAException('Project already exists')
@@ -152,30 +167,33 @@ class OdooInstanceActivity(Activity):
 
         project_title = config['project']['title']
         port_no = self._find_unused_port()
+        sca = config['project']['sca']
         self.odoo_instances.insert_one(
-            {'title': project_title, 'name': project_name, 'status': 'Deploying', 'port_no': port_no})
-        git_url = config['git']['url']
-        git_branch = config['git']['branch']
+            {'title': project_title, 'name': project_name, 'status': 'Deploying', 'port_no': port_no, 'sca': sca})
 
-        print "Installing project", project_name
-        # Download source code
-        checkout_path = self.projects_home + '/' + project_name
-        addons_checkout_path = None
-        if config.get('has_addons', False):
-            checkout_path = checkout_path + '/odoo'
-            addons_checkout_path = self.projects_home + '/' + project_name + '/addons'
-        os.makedirs(checkout_path)
+        if 'download' == sca:
+            git_url = config['git']['url']
+            git_branch = config['git']['branch']
 
-        try:
-            self._git_clone(git_url, git_branch, checkout_path)
-            if addons_checkout_path:
-                self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
-        except Exception as e:
-            self.odoo_instances.delete_one({'name': project_name})
-            shutil.rmtree(project_name)
-            raise OAException("%s\nError while clone the code from repository" % e.message)
-        self._create_odoo_db_user(project_name)
-        self._setup_odoo_configuration(config)
+            print "Installing project", project_name
+            # Download source code
+            checkout_path = self.projects_home + '/' + project_name
+            addons_checkout_path = None
+            if config['project'].get('has_addons', False):
+                checkout_path = checkout_path + '/odoo'
+                addons_checkout_path = self.projects_home + '/' + project_name + '/addons'
+            os.makedirs(checkout_path)
+
+            try:
+                self._git_clone(git_url, git_branch, checkout_path)
+                if addons_checkout_path:
+                    self._git_clone(config['addons']['url'], config['addons']['branch'], addons_checkout_path)
+            except Exception as e:
+                self.odoo_instances.delete_one({'name': project_name})
+                shutil.rmtree(project_name)
+                raise OAException("%s\nError while clone the code from repository" % e.message)
+            self._create_odoo_db_user(project_name)
+            self._setup_odoo_configuration(config)
         self._update_apache_config(project_name, port_no)
 
         self._update_server_status(project_name, 'Stopped')
@@ -199,7 +217,9 @@ class OdooInstanceActivity(Activity):
             raise OAException("Project %s not exits" % project_name)
         os.chdir(self.projects_home)
         self.stop(project_name)
-        shutil.rmtree(project_name)
+        sca = self.odoo_instances.find_one({'name': project_name}, {'_id': 0})['sca']
+        if sca == 'download':
+            shutil.rmtree(project_name)
         self._remove_apache_config(project_name)
         self.odoo_instances.delete_one({'name': project_name})
         print "Project %s removed successfully" % project_name
@@ -243,16 +263,17 @@ class OdooInstanceActivity(Activity):
     def _start_odoo(self, project_name, upgrade=None):
         port_no = self.odoo_instances.find_one({'name': project_name}, {'port_no': 1, '_id': 0})['port_no']
         update = ""
+        pid_file = tempfile.NamedTemporaryFile(delete=True)
+        pid_filename = pid_file.name
+        logfile = "%s/log/%s.log" % (self.dot_kutty_path, project_name)
         if upgrade is not None:
             update = "--update=%s" % upgrade
-        os.system('%s --xmlrpc-port=%s -c openerp-server.conf %s >/dev/null & echo $! > %s' % (
-            self._startup_file_location(), port_no, update, self.pid_file))
-        if os.path.isfile(self.pid_file):
-            fis = open(self.pid_file, 'r')
-            pid = fis.readline().rstrip()
-            fis.close()
-            os.remove(self.pid_file)
-            self.odoo_instances.update_one({'name': project_name}, {'$set': {'pid': pid}})
+        os.system('%s --xmlrpc-port=%s --logfile=%s -c openerp-server.conf %s >/dev/null & echo $! > %s' % (
+            self._startup_file_location(), port_no, logfile,  update, pid_filename))
+
+        pid = pid_file.readline().rstrip()
+        pid_file.close()
+        self.odoo_instances.update_one({'name': project_name}, {'$set': {'pid': pid}})
 
     def stop(self, project_name):
         if not self.has_project_exits(project_name):
