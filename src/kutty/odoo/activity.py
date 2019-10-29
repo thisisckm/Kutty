@@ -72,7 +72,7 @@ class OdooInstanceActivity(Activity):
         subprocess.Popen(command, stdin=subprocess.PIPE)
 
     def _startup_file_location(self):
-        if os.path.isdir('odoo'):
+        if not os.path.isdir('setup'):
             if os.path.isfile('odoo/openerp-server'):
                 return 'odoo/openerp-server'
             elif os.path.isfile('odoo/odoo.py'):
